@@ -1,4 +1,11 @@
-export const roleList = ["buyer", "vendor_owner", "super_admin", "support", "finance", "catalog_moderator"] as const;
+export const roleList = [
+  "buyer",
+  "vendor_owner",
+  "super_admin",
+  "support",
+  "finance",
+  "catalog_moderator",
+] as const;
 
 export type PrincipalRole = (typeof roleList)[number];
 
@@ -230,6 +237,39 @@ export interface VendorShipment {
 
 export interface VendorShipmentListResponse {
   items: VendorShipment[];
+  total: number;
+}
+
+export type RefundRequestStatus = "pending" | "approved" | "rejected";
+export type VendorRefundDecision = "approve" | "reject";
+
+export interface RefundRequest {
+  id: string;
+  order_id: string;
+  shipment_id: string;
+  vendor_id: string;
+  buyer_user_id?: string;
+  guest_token?: string;
+  reason: string;
+  requested_amount_cents: number;
+  currency: string;
+  status: RefundRequestStatus;
+  outcome: RefundRequestStatus;
+  decision?: VendorRefundDecision;
+  decision_reason?: string;
+  decided_by_user_id?: string;
+  decided_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BuyerRefundRequestCreateResponse {
+  refund_request: RefundRequest;
+  guest_token?: string;
+}
+
+export interface VendorRefundRequestListResponse {
+  items: RefundRequest[];
   total: number;
 }
 

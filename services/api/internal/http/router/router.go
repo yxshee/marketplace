@@ -15,6 +15,7 @@ import (
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/coupons"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/invoices"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/payments"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/refunds"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
 
@@ -33,6 +34,7 @@ type api struct {
 	commerce       *commerce.Service
 	invoices       *invoices.Service
 	payments       *payments.Service
+	refunds        *refunds.Service
 	defaultCommBPS int32
 }
 
@@ -95,6 +97,7 @@ func New(cfg config.Config) (http.Handler, error) {
 				return ok
 			},
 		}),
+		refunds: refunds.NewService(),
 	}
 	if cfg.Environment == "development" {
 		apiHandlers.seedDevelopmentCatalog()
@@ -126,6 +129,7 @@ func New(cfg config.Config) (http.Handler, error) {
 			buyerFlow.Post("/payments/stripe/intent", apiHandlers.handleStripeCreateIntent)
 			buyerFlow.Post("/payments/cod/confirm", apiHandlers.handleCODConfirmPayment)
 			buyerFlow.Get("/orders/{orderID}", apiHandlers.handleOrderByID)
+			buyerFlow.Post("/orders/{orderID}/refund-requests", apiHandlers.handleBuyerCreateRefundRequest)
 			buyerFlow.Get("/invoices/{orderID}/download", apiHandlers.handleInvoiceDownload)
 		})
 
@@ -164,6 +168,12 @@ func New(cfg config.Config) (http.Handler, error) {
 				vendorRoutes.Get("/vendor/shipments", apiHandlers.handleVendorListShipments)
 				vendorRoutes.Get("/vendor/shipments/{shipmentID}", apiHandlers.handleVendorShipmentDetail)
 				vendorRoutes.Patch("/vendor/shipments/{shipmentID}/status", apiHandlers.handleVendorShipmentStatusUpdate)
+			})
+
+			private.Group(func(vendorRoutes chi.Router) {
+				vendorRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageRefundDecisions))
+				vendorRoutes.Get("/vendor/refund-requests", apiHandlers.handleVendorListRefundRequests)
+				vendorRoutes.Patch("/vendor/refund-requests/{refundRequestID}/decision", apiHandlers.handleVendorRefundDecision)
 			})
 
 			private.Group(func(adminRoutes chi.Router) {

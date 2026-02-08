@@ -1,17 +1,19 @@
 # feat/vendor-refunds
 
-Status: Draft PR created for task tracking.
+Status: Completed.
 
 ## Planned scope
-- Implement the branch scope defined in the marketplace execution plan.
+
+- Implement vendor refund request queue and vendor decision flow.
 - Keep changes small, strongly typed, tested, and production-safe.
 
 ## Completion checklist
-- [ ] Implementation complete
-- [ ] pnpm -r lint
-- [ ] pnpm -r typecheck
-- [ ] pnpm -r test
-- [ ] pnpm -r build
-- [ ] go test ./... (API)
-- [ ] UI screenshots included (if UI changes)
-- [ ] Proof outputs added to PR description
+
+- [x] Implementation complete
+- [x] pnpm -r lint
+- [x] pnpm -r typecheck
+- [x] pnpm -r test
+- [x] pnpm -r build
+- [x] go test ./... (API)
+- [x] UI screenshots included (if UI changes)
+- [x] Proof outputs added to PR description

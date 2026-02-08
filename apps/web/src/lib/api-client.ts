@@ -1,5 +1,6 @@
 import type {
   AuthResponse,
+  BuyerRefundRequestCreateResponse,
   CODPaymentResponse,
   CartResponse,
   CatalogCategoriesResponse,
@@ -11,6 +12,8 @@ import type {
   OrderResponse,
   PaymentSettingsResponse,
   StripeIntentResponse,
+  VendorRefundDecision,
+  VendorRefundRequestListResponse,
   VendorCoupon,
   VendorCouponListResponse,
   VendorProduct,
@@ -28,15 +31,21 @@ import {
   codConfirmPaymentSchema,
   checkoutPlaceOrderSchema,
   paymentSettingsUpdateSchema,
+  refundRequestCreateSchema,
   stripeCreateIntentSchema,
   vendorCouponCreateSchema,
+  vendorRefundDecisionUpdateSchema,
   vendorCouponUpdateSchema,
   vendorProductCreateSchema,
   vendorProductUpdateSchema,
   vendorRegisterSchema,
   vendorShipmentStatusUpdateSchema,
 } from "@marketplace/shared/schemas/common";
-import { fallbackCategories, fallbackProducts, fallbackVendorNameByID } from "@/lib/catalog-fallback";
+import {
+  fallbackCategories,
+  fallbackProducts,
+  fallbackVendorNameByID,
+} from "@/lib/catalog-fallback";
 
 const API_BASE_URL = process.env.MARKETPLACE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 const guestTokenHeader = "X-Guest-Token";
@@ -73,7 +82,10 @@ const normalizeSearchParams = (params: CatalogSearchParams): CatalogSearchParams
   return parsed.data;
 };
 
-const fetchJSON = async <T>(path: string, options: RequestOptions = {}): Promise<ApiCallResult<T>> => {
+const fetchJSON = async <T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<ApiCallResult<T>> => {
   const headers = new Headers({
     "Content-Type": "application/json",
   });
@@ -182,10 +194,13 @@ const emptyCart = (guestToken?: string): CartResponse => ({
   guest_token: guestToken,
 });
 
-export const getCatalogProducts = async (params: CatalogSearchParams = {}): Promise<CatalogListResponse> => {
+export const getCatalogProducts = async (
+  params: CatalogSearchParams = {},
+): Promise<CatalogListResponse> => {
   const normalized = normalizeSearchParams(params);
   try {
-    return (await fetchJSON<CatalogListResponse>(`/catalog/products${toQueryString(normalized)}`)).payload;
+    return (await fetchJSON<CatalogListResponse>(`/catalog/products${toQueryString(normalized)}`))
+      .payload;
   } catch {
     return fallbackSearch(normalized);
   }
@@ -200,9 +215,12 @@ export const getCatalogCategories = async (): Promise<CatalogCategory[]> => {
   }
 };
 
-export const getCatalogProductById = async (productID: string): Promise<CatalogProductDetailResponse | null> => {
+export const getCatalogProductById = async (
+  productID: string,
+): Promise<CatalogProductDetailResponse | null> => {
   try {
-    return (await fetchJSON<CatalogProductDetailResponse>(`/catalog/products/${productID}`)).payload;
+    return (await fetchJSON<CatalogProductDetailResponse>(`/catalog/products/${productID}`))
+      .payload;
   } catch {
     const product = fallbackProducts.find((item) => item.id === productID);
     if (!product) {
@@ -210,12 +228,11 @@ export const getCatalogProductById = async (productID: string): Promise<CatalogP
     }
     return {
       item: product,
-      vendor:
-        fallbackVendorNameByID[product.vendor_id] ?? {
-          id: product.vendor_id,
-          slug: product.vendor_id,
-          displayName: "Independent Vendor",
-        },
+      vendor: fallbackVendorNameByID[product.vendor_id] ?? {
+        id: product.vendor_id,
+        slug: product.vendor_id,
+        displayName: "Independent Vendor",
+      },
     };
   }
 };
@@ -260,14 +277,19 @@ export const updateCartItem = async (
   });
 };
 
-export const deleteCartItem = async (itemID: string, guestToken?: string): Promise<ApiCallResult<CartResponse>> => {
+export const deleteCartItem = async (
+  itemID: string,
+  guestToken?: string,
+): Promise<ApiCallResult<CartResponse>> => {
   return fetchJSON<CartResponse>(`/cart/items/${itemID}`, {
     method: "DELETE",
     guestToken,
   });
 };
 
-export const getCheckoutQuote = async (guestToken?: string): Promise<ApiCallResult<CheckoutQuoteResponse>> => {
+export const getCheckoutQuote = async (
+  guestToken?: string,
+): Promise<ApiCallResult<CheckoutQuoteResponse>> => {
   return fetchJSON<CheckoutQuoteResponse>("/checkout/quote", {
     method: "POST",
     body: {},
@@ -287,9 +309,31 @@ export const placeOrder = async (
   });
 };
 
-export const getOrderByID = async (orderID: string, guestToken?: string): Promise<ApiCallResult<OrderResponse>> => {
+export const getOrderByID = async (
+  orderID: string,
+  guestToken?: string,
+): Promise<ApiCallResult<OrderResponse>> => {
   return fetchJSON<OrderResponse>(`/orders/${orderID}`, {
     guestToken,
+  });
+};
+
+export const createOrderRefundRequest = async (
+  orderID: string,
+  input: {
+    shipment_id: string;
+    reason: string;
+    requested_amount_cents?: number;
+  },
+  guestToken?: string,
+  accessToken?: string,
+): Promise<ApiCallResult<BuyerRefundRequestCreateResponse>> => {
+  const parsed = refundRequestCreateSchema.parse(input);
+  return fetchJSON<BuyerRefundRequestCreateResponse>(`/orders/${orderID}/refund-requests`, {
+    method: "POST",
+    body: parsed,
+    guestToken,
+    accessToken,
   });
 };
 
@@ -351,7 +395,9 @@ export const registerVendorProfile = async (
   });
 };
 
-export const getVendorVerificationStatus = async (accessToken: string): Promise<ApiCallResult<VendorProfile>> => {
+export const getVendorVerificationStatus = async (
+  accessToken: string,
+): Promise<ApiCallResult<VendorProfile>> => {
   return fetchJSON<VendorProfile>("/vendor/verification-status", {
     accessToken,
   });
@@ -377,7 +423,9 @@ export const updateAdminPaymentSettings = async (
   });
 };
 
-export const getVendorProducts = async (accessToken: string): Promise<ApiCallResult<VendorProductListResponse>> => {
+export const getVendorProducts = async (
+  accessToken: string,
+): Promise<ApiCallResult<VendorProductListResponse>> => {
   return fetchJSON<VendorProductListResponse>("/vendor/products", {
     accessToken,
   });
@@ -424,14 +472,20 @@ export const updateVendorProduct = async (
   });
 };
 
-export const deleteVendorProduct = async (productID: string, accessToken: string): Promise<void> => {
+export const deleteVendorProduct = async (
+  productID: string,
+  accessToken: string,
+): Promise<void> => {
   await fetchJSON<object>(`/vendor/products/${productID}`, {
     method: "DELETE",
     accessToken,
   });
 };
 
-export const submitVendorProductModeration = async (productID: string, accessToken: string): Promise<ApiCallResult<VendorProduct>> => {
+export const submitVendorProductModeration = async (
+  productID: string,
+  accessToken: string,
+): Promise<ApiCallResult<VendorProduct>> => {
   return fetchJSON<VendorProduct>(`/vendor/products/${productID}/submit-moderation`, {
     method: "POST",
     body: {},
@@ -439,7 +493,9 @@ export const submitVendorProductModeration = async (productID: string, accessTok
   });
 };
 
-export const getVendorCoupons = async (accessToken: string): Promise<ApiCallResult<VendorCouponListResponse>> => {
+export const getVendorCoupons = async (
+  accessToken: string,
+): Promise<ApiCallResult<VendorCouponListResponse>> => {
   return fetchJSON<VendorCouponListResponse>("/vendor/coupons", {
     accessToken,
   });
@@ -490,7 +546,9 @@ export const deleteVendorCoupon = async (couponID: string, accessToken: string):
   });
 };
 
-export const getVendorShipments = async (accessToken: string): Promise<ApiCallResult<VendorShipmentListResponse>> => {
+export const getVendorShipments = async (
+  accessToken: string,
+): Promise<ApiCallResult<VendorShipmentListResponse>> => {
   return fetchJSON<VendorShipmentListResponse>("/vendor/shipments", {
     accessToken,
   });
@@ -516,4 +574,33 @@ export const updateVendorShipmentStatus = async (
     body: parsed,
     accessToken,
   });
+};
+
+export const getVendorRefundRequests = async (
+  accessToken: string,
+  status?: "pending" | "approved" | "rejected",
+): Promise<ApiCallResult<VendorRefundRequestListResponse>> => {
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+  return fetchJSON<VendorRefundRequestListResponse>(`/vendor/refund-requests${suffix}`, {
+    accessToken,
+  });
+};
+
+export const decideVendorRefundRequest = async (
+  refundRequestID: string,
+  input: {
+    decision: VendorRefundDecision;
+    decision_reason?: string;
+  },
+  accessToken: string,
+): Promise<ApiCallResult<VendorRefundRequestListResponse["items"][number]>> => {
+  const parsed = vendorRefundDecisionUpdateSchema.parse(input);
+  return fetchJSON<VendorRefundRequestListResponse["items"][number]>(
+    `/vendor/refund-requests/${refundRequestID}/decision`,
+    {
+      method: "PATCH",
+      body: parsed,
+      accessToken,
+    },
+  );
 };

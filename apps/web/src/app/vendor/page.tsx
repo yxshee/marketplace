@@ -8,12 +8,18 @@ import {
   vendorDeleteProductAction,
   vendorLogoutAction,
   vendorOnboardingAction,
+  vendorRefundDecisionAction,
   vendorSubmitModerationAction,
   vendorToggleCouponAction,
   vendorUpdateShipmentStatusAction,
   vendorUpdateProductPricingAction,
 } from "@/app/actions/vendor";
-import { getVendorCoupons, getVendorProducts, getVendorShipments } from "@/lib/api-client";
+import {
+  getVendorCoupons,
+  getVendorProducts,
+  getVendorRefundRequests,
+  getVendorShipments,
+} from "@/lib/api-client";
 import { formatUSD } from "@/lib/formatters";
 import { SurfaceCard } from "@/components/ui/surface-card";
 
@@ -90,6 +96,9 @@ export default async function VendorSurfacePage({ searchParams }: VendorSurfaceP
   let products = [] as Awaited<ReturnType<typeof getVendorProducts>>["payload"]["items"];
   let coupons = [] as Awaited<ReturnType<typeof getVendorCoupons>>["payload"]["items"];
   let shipments = [] as Awaited<ReturnType<typeof getVendorShipments>>["payload"]["items"];
+  let refundRequests = [] as Awaited<
+    ReturnType<typeof getVendorRefundRequests>
+  >["payload"]["items"];
   let managementLoadError = false;
 
   if (accessToken && vendor) {
@@ -97,6 +106,7 @@ export default async function VendorSurfacePage({ searchParams }: VendorSurfaceP
       products = (await getVendorProducts(accessToken)).payload.items;
       coupons = (await getVendorCoupons(accessToken)).payload.items;
       shipments = (await getVendorShipments(accessToken)).payload.items;
+      refundRequests = (await getVendorRefundRequests(accessToken)).payload.items;
     } catch {
       managementLoadError = true;
     }
@@ -267,7 +277,8 @@ export default async function VendorSurfacePage({ searchParams }: VendorSurfaceP
           {managementLoadError ? (
             <SurfaceCard>
               <p className="text-sm text-muted">
-                Unable to load vendor products/coupons/shipments right now. Retry in a moment.
+                Unable to load vendor products/coupons/shipments/refunds right now. Retry in a
+                moment.
               </p>
             </SurfaceCard>
           ) : (
@@ -590,6 +601,76 @@ export default async function VendorSurfacePage({ searchParams }: VendorSurfaceP
                       <p className="mt-2 text-xs text-muted">
                         Timeline events: {shipment.timeline.length}
                       </p>
+                    </article>
+                  ))}
+                </div>
+              </SurfaceCard>
+
+              <SurfaceCard>
+                <h3 className="font-display text-lg font-semibold">Refund requests</h3>
+                <p className="mt-1 text-sm text-muted">
+                  Review buyer refund requests tied to your shipments and record final decisions.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  {refundRequests.length === 0 ? (
+                    <p className="text-sm text-muted">No refund requests yet.</p>
+                  ) : null}
+                  {refundRequests.map((refundRequest) => (
+                    <article className="rounded-sm border border-border p-3" key={refundRequest.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="font-medium text-ink">{refundRequest.id}</h4>
+                        <span className="text-xs uppercase tracking-[0.12em] text-muted">
+                          {refundRequest.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        Order {refundRequest.order_id} · Shipment {refundRequest.shipment_id}
+                      </p>
+                      <p className="mt-2 text-sm text-muted">
+                        Requested {formatUSD(refundRequest.requested_amount_cents)} · Reason{" "}
+                        {refundRequest.reason}
+                      </p>
+                      {refundRequest.status === "pending" ? (
+                        <form
+                          action={vendorRefundDecisionAction}
+                          className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
+                        >
+                          <input name="refund_request_id" type="hidden" value={refundRequest.id} />
+                          <label className="space-y-1 text-xs">
+                            <span>Decision</span>
+                            <select
+                              className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                              defaultValue="approve"
+                              name="decision"
+                            >
+                              <option value="approve">Approve</option>
+                              <option value="reject">Reject</option>
+                            </select>
+                          </label>
+                          <label className="space-y-1 text-xs">
+                            <span>Decision note</span>
+                            <input
+                              className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                              name="decision_reason"
+                              type="text"
+                            />
+                          </label>
+                          <button
+                            className="self-end rounded-sm border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+                            type="submit"
+                          >
+                            Apply decision
+                          </button>
+                        </form>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted">
+                          Outcome {refundRequest.outcome}
+                          {refundRequest.decision_reason
+                            ? ` · Note ${refundRequest.decision_reason}`
+                            : ""}
+                        </p>
+                      )}
                     </article>
                   ))}
                 </div>

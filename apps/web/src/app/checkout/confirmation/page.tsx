@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { createRefundRequestAction } from "@/app/actions/cart";
 import { getOrderByID } from "@/lib/api-client";
 import { formatUSD } from "@/lib/formatters";
 
@@ -21,6 +22,7 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
   const paymentStatusParam = first(params.paymentStatus);
   const paymentProviderRef = first(params.paymentProviderRef);
   const flowError = first(params.error);
+  const flowNotice = first(params.notice);
 
   if (!orderID) {
     return (
@@ -59,10 +61,15 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Order confirmation</p>
-        <h1 className="font-display text-4xl font-semibold leading-tight">Order placed successfully</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+          Order confirmation
+        </p>
+        <h1 className="font-display text-4xl font-semibold leading-tight">
+          Order placed successfully
+        </h1>
         <p className="text-sm text-muted">Order ID: {order.id}</p>
         {flowError ? <p className="text-sm text-muted">Payment note: {flowError}</p> : null}
+        {flowNotice ? <p className="text-sm text-muted">Notice: {flowNotice}</p> : null}
       </header>
 
       <section className="space-y-3">
@@ -90,6 +97,38 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
                 <span>{formatUSD(shipment.total_cents)}</span>
               </div>
             </div>
+            {(order.status === "paid" || order.status === "cod_confirmed") &&
+            shipment.status !== "cancelled" ? (
+              <form action={createRefundRequestAction} className="mt-3 space-y-2">
+                <input name="order_id" type="hidden" value={order.id} />
+                <input name="shipment_id" type="hidden" value={shipment.id} />
+                <label className="block space-y-1 text-xs text-muted">
+                  <span>Refund reason</span>
+                  <input
+                    className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                    defaultValue="Requesting refund for shipment issue"
+                    name="reason"
+                    required
+                    type="text"
+                  />
+                </label>
+                <label className="block space-y-1 text-xs text-muted">
+                  <span>Requested amount (cents, optional)</span>
+                  <input
+                    className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                    min={1}
+                    name="requested_amount_cents"
+                    type="number"
+                  />
+                </label>
+                <button
+                  className="rounded-sm border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+                  type="submit"
+                >
+                  Request refund for shipment
+                </button>
+              </form>
+            ) : null}
           </article>
         ))}
       </section>
@@ -109,7 +148,8 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
             <span>{formatUSD(order.total_cents)}</span>
           </div>
           <p className="mt-1 text-xs text-muted">
-            Payment method: {paymentMethod ?? "unassigned"}. Status: {paymentStatusParam ?? order.status}.{" "}
+            Payment method: {paymentMethod ?? "unassigned"}. Status:{" "}
+            {paymentStatusParam ?? order.status}.{" "}
             {paymentProviderRef ? `Reference: ${paymentProviderRef}.` : ""}
           </p>
         </div>
@@ -121,7 +161,10 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
             Continue shopping
           </Link>
           {invoiceReady ? (
-            <Link className="text-sm underline-offset-4 hover:underline" href={`/api/invoices/${order.id}`}>
+            <Link
+              className="text-sm underline-offset-4 hover:underline"
+              href={`/api/invoices/${order.id}`}
+            >
               Download invoice PDF
             </Link>
           ) : null}
