@@ -183,6 +183,51 @@ func TestCreateStripeIntentReturnsExistingOrderIntentAcrossDifferentIdempotencyK
 	}
 }
 
+func TestCreateStripeIntentAllowsNewIntentAfterFailedPayment(t *testing.T) {
+	svc := NewService(Config{
+		WebhookSecret: "whsec_test_secret",
+		StripeClient:  NewMockStripeClient(),
+	})
+
+	order := commerce.Order{
+		ID:         "ord_test_retry_after_failure",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 6400,
+		Currency:   "USD",
+	}
+
+	first, err := svc.CreateStripeIntent(context.Background(), order, "idem-pi-fail-first")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() first error = %v", err)
+	}
+
+	payload, signature := signedStripeEventPayload(
+		t,
+		"whsec_test_secret",
+		"evt_retry_after_failure",
+		"payment_intent.payment_failed",
+		first.ProviderRef,
+	)
+	if _, err := svc.HandleStripeWebhook(payload, signature); err != nil {
+		t.Fatalf("HandleStripeWebhook() error = %v", err)
+	}
+
+	retryOrder := order
+	retryOrder.Status = commerce.OrderStatusPaymentFailed
+
+	second, err := svc.CreateStripeIntent(context.Background(), retryOrder, "idem-pi-fail-second")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() retry error = %v", err)
+	}
+
+	if second.ID == first.ID {
+		t.Fatalf("expected a new payment id after failure, got same %s", second.ID)
+	}
+	if second.ProviderRef == first.ProviderRef {
+		t.Fatalf("expected a new provider ref after failure, got same %s", second.ProviderRef)
+	}
+}
+
 func TestPaymentSettingsDisableStripeAndCOD(t *testing.T) {
 	svc := NewService(Config{
 		WebhookSecret: "whsec_test_secret",

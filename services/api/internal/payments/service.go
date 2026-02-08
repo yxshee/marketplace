@@ -181,9 +181,12 @@ func (s *Service) CreateStripeIntent(ctx context.Context, order commerce.Order, 
 	}
 	if paymentID, exists := s.orderToPaymentID[orderID]; exists {
 		intent := s.paymentsByID[paymentID]
-		s.intentByRequestID[requestID] = paymentID
-		s.mu.Unlock()
-		return intent, nil
+		allowRetryAfterFailure := order.Status == commerce.OrderStatusPaymentFailed && intent.Status == PaymentStatusFailed
+		if !allowRetryAfterFailure {
+			s.intentByRequestID[requestID] = paymentID
+			s.mu.Unlock()
+			return intent, nil
+		}
 	}
 	if !s.settings.StripeEnabled {
 		s.mu.Unlock()
@@ -223,6 +226,14 @@ func (s *Service) CreateStripeIntent(ctx context.Context, order commerce.Order, 
 	defer s.mu.Unlock()
 	if paymentID, exists := s.intentByRequestID[requestID]; exists {
 		return s.paymentsByID[paymentID], nil
+	}
+	if paymentID, exists := s.orderToPaymentID[orderID]; exists {
+		existing := s.paymentsByID[paymentID]
+		allowRetryAfterFailure := order.Status == commerce.OrderStatusPaymentFailed && existing.Status == PaymentStatusFailed
+		if !allowRetryAfterFailure {
+			s.intentByRequestID[requestID] = paymentID
+			return existing, nil
+		}
 	}
 	s.intentByRequestID[requestID] = intent.ID
 	s.paymentsByID[intent.ID] = intent

@@ -337,6 +337,14 @@ export const createOrderRefundRequest = async (
   });
 };
 
+export const getBuyerPaymentSettings = async (
+  guestToken?: string,
+): Promise<ApiCallResult<PaymentSettingsResponse>> => {
+  return fetchJSON<PaymentSettingsResponse>("/payments/settings", {
+    guestToken,
+  });
+};
+
 export const createStripePaymentIntent = async (
   input: { order_id: string; idempotency_key: string },
   guestToken?: string,

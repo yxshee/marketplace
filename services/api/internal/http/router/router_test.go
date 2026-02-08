@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -306,6 +307,63 @@ func TestAdminPaymentSettingsRBACAndEnforcement(t *testing.T) {
 	}, "", map[string]string{guestTokenHeader: "gst_settings_cod_disabled"})
 	if codConfirm.Code != http.StatusConflict {
 		t.Fatalf("expected cod confirmation to be blocked when disabled, got status=%d body=%s", codConfirm.Code, codConfirm.Body.String())
+	}
+}
+
+func TestBuyerPaymentSettingsExposeCurrentAvailability(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	r := mustRouterWithConfig(t, cfg)
+
+	finance := registerUser(t, r, "finance@example.com")
+
+	initialSettings := requestJSON(t, r, http.MethodGet, "/api/v1/payments/settings", nil, "")
+	if initialSettings.Code != http.StatusOK {
+		t.Fatalf("expected buyer payment settings to be readable, got status=%d body=%s", initialSettings.Code, initialSettings.Body.String())
+	}
+
+	var initialPayload struct {
+		StripeEnabled bool `json:"stripe_enabled"`
+		CODEnabled    bool `json:"cod_enabled"`
+	}
+	if err := json.Unmarshal(initialSettings.Body.Bytes(), &initialPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !initialPayload.StripeEnabled || !initialPayload.CODEnabled {
+		t.Fatalf("expected both methods enabled by default, got %#v", initialPayload)
+	}
+
+	guestToken := initialSettings.Header().Get(guestTokenHeader)
+	if strings.TrimSpace(guestToken) == "" {
+		t.Fatalf("expected buyer settings response to include guest token header")
+	}
+
+	disableStripe := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/settings/payments", map[string]bool{
+		"stripe_enabled": false,
+	}, finance.AccessToken)
+	if disableStripe.Code != http.StatusOK {
+		t.Fatalf("expected finance to disable stripe, got status=%d body=%s", disableStripe.Code, disableStripe.Body.String())
+	}
+
+	afterDisable := requestJSONWithHeaders(t, r, http.MethodGet, "/api/v1/payments/settings", nil, "", map[string]string{
+		guestTokenHeader: guestToken,
+	})
+	if afterDisable.Code != http.StatusOK {
+		t.Fatalf("expected buyer payment settings after update, got status=%d body=%s", afterDisable.Code, afterDisable.Body.String())
+	}
+
+	var afterPayload struct {
+		StripeEnabled bool `json:"stripe_enabled"`
+		CODEnabled    bool `json:"cod_enabled"`
+	}
+	if err := json.Unmarshal(afterDisable.Body.Bytes(), &afterPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if afterPayload.StripeEnabled {
+		t.Fatalf("expected stripe to be disabled in buyer settings, got %#v", afterPayload)
+	}
+	if !afterPayload.CODEnabled {
+		t.Fatalf("expected cod to remain enabled in buyer settings, got %#v", afterPayload)
 	}
 }
 
