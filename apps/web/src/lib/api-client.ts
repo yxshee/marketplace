@@ -1,4 +1,5 @@
 import type {
+  AuthResponse,
   CODPaymentResponse,
   CartResponse,
   CatalogCategoriesResponse,
@@ -9,14 +10,17 @@ import type {
   CheckoutQuoteResponse,
   OrderResponse,
   StripeIntentResponse,
+  VendorProfile,
 } from "@marketplace/shared/contracts/api";
 import {
+  authCredentialsSchema,
   cartItemMutationSchema,
   cartItemQtySchema,
   catalogSearchSchema,
   codConfirmPaymentSchema,
   checkoutPlaceOrderSchema,
   stripeCreateIntentSchema,
+  vendorRegisterSchema,
 } from "@marketplace/shared/schemas/common";
 import { fallbackCategories, fallbackProducts, fallbackVendorNameByID } from "@/lib/catalog-fallback";
 
@@ -27,6 +31,7 @@ interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   guestToken?: string;
+  accessToken?: string;
 }
 
 export interface ApiCallResult<T> {
@@ -60,6 +65,9 @@ const fetchJSON = async <T>(path: string, options: RequestOptions = {}): Promise
   });
   if (options.guestToken) {
     headers.set(guestTokenHeader, options.guestToken);
+  }
+  if (options.accessToken) {
+    headers.set("Authorization", `Bearer ${options.accessToken}`);
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -284,5 +292,45 @@ export const confirmCODPayment = async (
     method: "POST",
     body: parsed,
     guestToken,
+  });
+};
+
+export const registerAuthUser = async (input: {
+  email: string;
+  password: string;
+}): Promise<ApiCallResult<AuthResponse>> => {
+  const parsed = authCredentialsSchema.parse(input);
+  return fetchJSON<AuthResponse>("/auth/register", {
+    method: "POST",
+    body: parsed,
+  });
+};
+
+export const loginAuthUser = async (input: {
+  email: string;
+  password: string;
+}): Promise<ApiCallResult<AuthResponse>> => {
+  const parsed = authCredentialsSchema.parse(input);
+  return fetchJSON<AuthResponse>("/auth/login", {
+    method: "POST",
+    body: parsed,
+  });
+};
+
+export const registerVendorProfile = async (
+  input: { slug: string; display_name: string },
+  accessToken: string,
+): Promise<ApiCallResult<VendorProfile>> => {
+  const parsed = vendorRegisterSchema.parse(input);
+  return fetchJSON<VendorProfile>("/vendors/register", {
+    method: "POST",
+    body: parsed,
+    accessToken,
+  });
+};
+
+export const getVendorVerificationStatus = async (accessToken: string): Promise<ApiCallResult<VendorProfile>> => {
+  return fetchJSON<VendorProfile>("/vendor/verification-status", {
+    accessToken,
   });
 };

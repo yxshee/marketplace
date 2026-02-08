@@ -136,6 +136,7 @@ func New(cfg config.Config) (http.Handler, error) {
 			private.Post("/auth/logout", apiHandlers.handleAuthLogout)
 
 			private.Post("/vendors/register", apiHandlers.handleVendorRegister)
+			private.Get("/vendor/profile", apiHandlers.handleVendorVerificationStatus)
 			private.Get("/vendor/verification-status", apiHandlers.handleVendorVerificationStatus)
 
 			private.Group(func(vendorRoutes chi.Router) {
