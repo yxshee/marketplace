@@ -1,4 +1,5 @@
 import type {
+  AdminModerationProductListResponse,
   AdminVendorListResponse,
   AuthResponse,
   BuyerRefundRequestCreateResponse,
@@ -441,6 +442,30 @@ export const updateAdminVendorVerification = async (
   accessToken: string,
 ): Promise<ApiCallResult<VendorProfile>> => {
   return fetchJSON<VendorProfile>(`/admin/vendors/${vendorID}/verification`, {
+    method: "PATCH",
+    body: input,
+    accessToken,
+  });
+};
+
+export const getAdminModerationProducts = async (
+  accessToken: string,
+  status: "draft" | "pending_approval" | "approved" | "rejected" = "pending_approval",
+): Promise<ApiCallResult<AdminModerationProductListResponse>> => {
+  return fetchJSON<AdminModerationProductListResponse>(
+    `/admin/moderation/products?status=${encodeURIComponent(status)}`,
+    {
+      accessToken,
+    },
+  );
+};
+
+export const updateAdminModerationProduct = async (
+  productID: string,
+  input: { decision: "approve" | "reject"; reason?: string },
+  accessToken: string,
+): Promise<ApiCallResult<VendorProduct>> => {
+  return fetchJSON<VendorProduct>(`/admin/moderation/products/${productID}`, {
     method: "PATCH",
     body: input,
     accessToken,

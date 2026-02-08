@@ -197,6 +197,7 @@ func New(cfg config.Config) (http.Handler, error) {
 
 			private.Group(func(adminRoutes chi.Router) {
 				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionModerateProducts))
+				adminRoutes.Get("/admin/moderation/products", apiHandlers.handleAdminModerationList)
 				adminRoutes.Patch("/admin/moderation/products/{productID}", apiHandlers.handleAdminModerateProduct)
 			})
 

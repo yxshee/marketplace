@@ -394,6 +394,33 @@ func (s *Service) ListVisibleProducts(vendorVisible func(vendorID string) bool) 
 	return result.Items
 }
 
+func (s *Service) ListByStatus(status ProductStatus) []Product {
+	target := ProductStatus(strings.TrimSpace(string(status)))
+	if target == "" {
+		return []Product{}
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]Product, 0, len(s.byID))
+	for _, product := range s.byID {
+		if product.Status != target {
+			continue
+		}
+		items = append(items, product)
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].ID < items[j].ID
+		}
+		return items[i].UpdatedAt.After(items[j].UpdatedAt)
+	})
+
+	return items
+}
+
 func (s *Service) Search(params SearchParams, vendorVisible func(vendorID string) bool) SearchResult {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

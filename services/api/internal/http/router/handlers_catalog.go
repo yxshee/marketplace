@@ -235,6 +235,29 @@ func (a *api) vendorOwnerContext(w http.ResponseWriter, r *http.Request) (auth.I
 	return identity, registeredVendor, true
 }
 
+func (a *api) handleAdminModerationList(w http.ResponseWriter, r *http.Request) {
+	statusFilter := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("status")))
+	targetStatus := catalog.ProductStatusPendingApproval
+	if statusFilter != "" {
+		switch catalog.ProductStatus(statusFilter) {
+		case catalog.ProductStatusDraft,
+			catalog.ProductStatusPendingApproval,
+			catalog.ProductStatusApproved,
+			catalog.ProductStatusRejected:
+			targetStatus = catalog.ProductStatus(statusFilter)
+		default:
+			writeError(w, http.StatusBadRequest, "invalid moderation status filter")
+			return
+		}
+	}
+
+	items := a.catalogService.ListByStatus(targetStatus)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"items": items,
+		"total": len(items),
+	})
+}
+
 func (a *api) handleAdminModerateProduct(w http.ResponseWriter, r *http.Request) {
 	identity, ok := auth.IdentityFromContext(r.Context())
 	if !ok {
