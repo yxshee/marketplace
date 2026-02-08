@@ -17,6 +17,9 @@ func TestModerationWorkflow(t *testing.T) {
 	if submitted.Status != ProductStatusPendingApproval {
 		t.Fatalf("expected pending_approval status, got %s", submitted.Status)
 	}
+	if len(service.ListByStatus(ProductStatusPendingApproval)) != 1 {
+		t.Fatalf("expected one product in pending moderation queue")
+	}
 
 	approved, err := service.ReviewProduct(product.ID, "admin_1", ModerationDecisionApprove, "")
 	if err != nil {
@@ -24,6 +27,12 @@ func TestModerationWorkflow(t *testing.T) {
 	}
 	if approved.Status != ProductStatusApproved {
 		t.Fatalf("expected approved status, got %s", approved.Status)
+	}
+	if len(service.ListByStatus(ProductStatusPendingApproval)) != 0 {
+		t.Fatalf("expected no pending products after approval")
+	}
+	if len(service.ListByStatus(ProductStatusApproved)) != 1 {
+		t.Fatalf("expected one approved product")
 	}
 
 	visible := service.ListVisibleProducts(func(vendorID string) bool { return vendorID == "ven_1" })

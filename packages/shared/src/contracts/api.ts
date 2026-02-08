@@ -66,6 +66,11 @@ export interface VendorProductListResponse {
   total: number;
 }
 
+export interface AdminModerationProductListResponse {
+  items: VendorProduct[];
+  total: number;
+}
+
 export interface VendorCoupon {
   id: string;
   vendor_id: string;

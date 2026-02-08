@@ -703,6 +703,21 @@ paths:
         "200":
           description: Product moderated
 
+  /admin/moderation/products:
+    get:
+      summary: List products in moderation queue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [draft, pending_approval, approved, rejected]
+      responses:
+        "200":
+          description: Moderation queue list
+
   /admin/settings/payments:
     get:
       summary: Fetch platform payment settings

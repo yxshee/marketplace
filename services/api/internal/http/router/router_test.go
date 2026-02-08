@@ -334,6 +334,123 @@ func TestAdminVendorVerificationQueueListAndUpdate(t *testing.T) {
 	}
 }
 
+func TestAdminModerationQueueListAndDecision(t *testing.T) {
+	r := mustRouter(t)
+
+	owner := registerUser(t, r, "admin-moderation-owner@example.com")
+	admin := registerUser(t, r, "admin@example.com")
+	moderator := registerUser(t, r, "moderator@example.com")
+	support := registerUser(t, r, "support@example.com")
+
+	vendorCreated := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "admin-moderation-vendor",
+		"display_name": "Admin Moderation Vendor",
+	}, owner.AccessToken)
+	if vendorCreated.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", vendorCreated.Code, vendorCreated.Body.String())
+	}
+
+	var vendorBody struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(vendorCreated.Body.Bytes(), &vendorBody); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	verified := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/vendors/"+vendorBody.ID+"/verification", map[string]string{
+		"state":  "verified",
+		"reason": "kyc complete",
+	}, admin.AccessToken)
+	if verified.Code != http.StatusOK {
+		t.Fatalf("admin verify vendor status=%d body=%s", verified.Code, verified.Body.String())
+	}
+
+	ownerLogin := loginUser(t, r, "admin-moderation-owner@example.com")
+	createdProduct := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products", map[string]interface{}{
+		"title":                "Moderation Queue Product",
+		"description":          "Queue test product",
+		"category_slug":        "stationery",
+		"tags":                 []string{"queue"},
+		"price_incl_tax_cents": 1800,
+		"currency":             "USD",
+		"stock_qty":            5,
+	}, ownerLogin.AccessToken)
+	if createdProduct.Code != http.StatusCreated {
+		t.Fatalf("create product status=%d body=%s", createdProduct.Code, createdProduct.Body.String())
+	}
+
+	var product struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(createdProduct.Body.Bytes(), &product); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	submitted := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products/"+product.ID+"/submit-moderation", map[string]string{}, ownerLogin.AccessToken)
+	if submitted.Code != http.StatusOK {
+		t.Fatalf("submit moderation status=%d body=%s", submitted.Code, submitted.Body.String())
+	}
+
+	pendingQueue := requestJSON(t, r, http.MethodGet, "/api/v1/admin/moderation/products?status=pending_approval", nil, moderator.AccessToken)
+	if pendingQueue.Code != http.StatusOK {
+		t.Fatalf("moderation queue status=%d body=%s", pendingQueue.Code, pendingQueue.Body.String())
+	}
+	var pendingPayload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(pendingQueue.Body.Bytes(), &pendingPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if pendingPayload.Total != 1 {
+		t.Fatalf("expected one pending moderation item, got %d", pendingPayload.Total)
+	}
+
+	invalidStatus := requestJSON(t, r, http.MethodGet, "/api/v1/admin/moderation/products?status=invalid", nil, moderator.AccessToken)
+	if invalidStatus.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid status filter 400, got status=%d body=%s", invalidStatus.Code, invalidStatus.Body.String())
+	}
+
+	approved := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/moderation/products/"+product.ID, map[string]string{
+		"decision": "approve",
+	}, moderator.AccessToken)
+	if approved.Code != http.StatusOK {
+		t.Fatalf("approve moderation status=%d body=%s", approved.Code, approved.Body.String())
+	}
+
+	pendingAfterDecision := requestJSON(t, r, http.MethodGet, "/api/v1/admin/moderation/products?status=pending_approval", nil, moderator.AccessToken)
+	if pendingAfterDecision.Code != http.StatusOK {
+		t.Fatalf("pending queue after decision status=%d body=%s", pendingAfterDecision.Code, pendingAfterDecision.Body.String())
+	}
+	var pendingAfterPayload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(pendingAfterDecision.Body.Bytes(), &pendingAfterPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if pendingAfterPayload.Total != 0 {
+		t.Fatalf("expected no pending moderation items after approval, got %d", pendingAfterPayload.Total)
+	}
+
+	approvedQueue := requestJSON(t, r, http.MethodGet, "/api/v1/admin/moderation/products?status=approved", nil, moderator.AccessToken)
+	if approvedQueue.Code != http.StatusOK {
+		t.Fatalf("approved queue status=%d body=%s", approvedQueue.Code, approvedQueue.Body.String())
+	}
+	var approvedPayload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(approvedQueue.Body.Bytes(), &approvedPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if approvedPayload.Total != 1 {
+		t.Fatalf("expected one approved product in filtered queue, got %d", approvedPayload.Total)
+	}
+
+	supportList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/moderation/products", nil, support.AccessToken)
+	if supportList.Code != http.StatusForbidden {
+		t.Fatalf("support should be forbidden for moderation queue, got status=%d body=%s", supportList.Code, supportList.Body.String())
+	}
+}
+
 func TestAdminPaymentSettingsRBACAndEnforcement(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"

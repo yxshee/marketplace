@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { loginAuthUser, registerAuthUser, updateAdminVendorVerification } from "@/lib/api-client";
+import {
+  loginAuthUser,
+  registerAuthUser,
+  updateAdminModerationProduct,
+  updateAdminVendorVerification,
+} from "@/lib/api-client";
 
 const adminTokenCookieName = "mkt_admin_access_token";
 
@@ -83,6 +88,33 @@ export async function adminVendorVerificationAction(formData: FormData): Promise
   }
 
   redirect("/admin?notice=admin-vendor-updated");
+}
+
+export async function adminModerationDecisionAction(formData: FormData): Promise<never> {
+  const accessToken = await requireAdminToken();
+  const productID = String(formData.get("product_id") ?? "").trim();
+  const decision = String(formData.get("decision") ?? "").trim() as "approve" | "reject";
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!productID) {
+    redirect("/admin?error=admin-product-missing");
+  }
+
+  try {
+    await updateAdminModerationProduct(
+      productID,
+      {
+        decision,
+        reason: reason || undefined,
+      },
+      accessToken,
+    );
+    revalidatePath("/admin");
+  } catch {
+    redirect("/admin?error=admin-moderation-decision-failed");
+  }
+
+  redirect("/admin?notice=admin-moderation-updated");
 }
 
 export async function adminLogoutAction(): Promise<never> {
