@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -89,6 +90,98 @@ func TestStripeWebhookSignatureAndIdempotency(t *testing.T) {
 	}
 	if len(markedPaid) != 1 {
 		t.Fatalf("expected duplicate webhook to skip hook invocation, got %d calls", len(markedPaid))
+	}
+}
+
+func TestStripeWebhookConcurrentDeliveryIsIdempotent(t *testing.T) {
+	var (
+		markedMu        sync.Mutex
+		markedPaidCount int
+	)
+	svc := NewService(Config{
+		WebhookSecret: "whsec_test_secret",
+		StripeClient:  NewMockStripeClient(),
+		MarkOrderPaid: func(orderID string) bool {
+			markedMu.Lock()
+			markedPaidCount++
+			markedMu.Unlock()
+			return true
+		},
+	})
+
+	order := commerce.Order{
+		ID:         "ord_test_webhook_concurrency",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 9900,
+		Currency:   "USD",
+	}
+
+	intent, err := svc.CreateStripeIntent(context.Background(), order, "idem-pi-concurrency")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() error = %v", err)
+	}
+
+	payload, signature := signedStripeEventPayload(
+		t,
+		"whsec_test_secret",
+		"evt_concurrent_1",
+		"payment_intent.succeeded",
+		intent.ProviderRef,
+	)
+
+	const deliveries = 16
+	var (
+		wg            sync.WaitGroup
+		start         = make(chan struct{})
+		results       = make(chan WebhookResult, deliveries)
+		errorsChannel = make(chan error, deliveries)
+	)
+
+	for i := 0; i < deliveries; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			result, err := svc.HandleStripeWebhook(payload, signature)
+			if err != nil {
+				errorsChannel <- err
+				return
+			}
+			results <- result
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(results)
+	close(errorsChannel)
+
+	for err := range errorsChannel {
+		t.Fatalf("HandleStripeWebhook() concurrent error = %v", err)
+	}
+
+	processedCount := 0
+	duplicateCount := 0
+	for result := range results {
+		if result.Processed {
+			processedCount++
+		}
+		if result.Duplicate {
+			duplicateCount++
+		}
+	}
+
+	if processedCount != 1 {
+		t.Fatalf("expected exactly one processed delivery, got %d", processedCount)
+	}
+	if duplicateCount != deliveries-1 {
+		t.Fatalf("expected %d duplicates, got %d", deliveries-1, duplicateCount)
+	}
+
+	markedMu.Lock()
+	defer markedMu.Unlock()
+	if markedPaidCount != 1 {
+		t.Fatalf("expected markOrderPaid callback once, got %d", markedPaidCount)
 	}
 }
 

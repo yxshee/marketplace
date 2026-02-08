@@ -108,6 +108,7 @@ type Service struct {
 	intentByRequestID map[string]string
 	providerToPayment map[string]string
 	processedEvents   map[string]struct{}
+	processingEvents  map[string]struct{}
 	codPaymentsByID   map[string]CODPayment
 	codByRequestID    map[string]string
 	codByOrderID      map[string]string
@@ -145,6 +146,7 @@ func NewService(cfg Config) *Service {
 		intentByRequestID: make(map[string]string),
 		providerToPayment: make(map[string]string),
 		processedEvents:   make(map[string]struct{}),
+		processingEvents:  make(map[string]struct{}),
 		codPaymentsByID:   make(map[string]CODPayment),
 		codByRequestID:    make(map[string]string),
 		codByOrderID:      make(map[string]string),
@@ -350,23 +352,20 @@ func (s *Service) HandleStripeWebhook(payload []byte, signatureHeader string) (W
 		return WebhookResult{}, ErrInvalidPayload
 	}
 
-	s.mu.Lock()
-	if _, duplicate := s.processedEvents[event.ID]; duplicate {
-		s.mu.Unlock()
+	if !s.startEventProcessing(event.ID) {
 		return WebhookResult{
 			EventID:   event.ID,
 			Processed: false,
 			Duplicate: true,
 		}, nil
 	}
-	s.mu.Unlock()
+	processed := false
+	defer s.finishEventProcessing(event.ID, &processed)
 
 	switch event.Type {
 	case stripeEventIntentSucceeded, stripeEventIntentFailed:
 	default:
-		s.mu.Lock()
-		s.processedEvents[event.ID] = struct{}{}
-		s.mu.Unlock()
+		processed = true
 		return WebhookResult{
 			EventID:   event.ID,
 			Processed: false,
@@ -398,8 +397,8 @@ func (s *Service) HandleStripeWebhook(payload []byte, signatureHeader string) (W
 	}
 	payment.UpdatedAt = s.now()
 	s.paymentsByID[paymentID] = payment
-	s.processedEvents[event.ID] = struct{}{}
 	s.mu.Unlock()
+	processed = true
 
 	if event.Type == stripeEventIntentSucceeded && s.markOrderPaid != nil {
 		_ = s.markOrderPaid(payment.OrderID)
@@ -416,4 +415,29 @@ func (s *Service) HandleStripeWebhook(payload []byte, signatureHeader string) (W
 		OrderID:       payment.OrderID,
 		PaymentStatus: payment.Status,
 	}, nil
+}
+
+func (s *Service) startEventProcessing(eventID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.processedEvents[eventID]; exists {
+		return false
+	}
+	if _, exists := s.processingEvents[eventID]; exists {
+		return false
+	}
+	s.processingEvents[eventID] = struct{}{}
+
+	return true
+}
+
+func (s *Service) finishEventProcessing(eventID string, processed *bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.processingEvents, eventID)
+	if processed != nil && *processed {
+		s.processedEvents[eventID] = struct{}{}
+	}
 }
