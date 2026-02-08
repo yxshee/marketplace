@@ -1,6 +1,6 @@
 # feat/buyer-payments-stripe
 
-Status: Complete - Stripe intent and webhook flow implementation.
+Status: Complete - recreated from origin/main and hardened Stripe/COD payment settings enforcement.
 
 ## Planned scope
 - Implement the branch scope defined in the marketplace execution plan.

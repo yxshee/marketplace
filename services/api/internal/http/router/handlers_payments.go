@@ -61,6 +61,8 @@ func (a *api) handleStripeCreateIntent(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, payments.ErrIdempotencyKey):
 			writeError(w, http.StatusBadRequest, "idempotency key is required")
+		case errors.Is(err, payments.ErrStripeDisabled):
+			writeError(w, http.StatusConflict, "stripe payments are disabled")
 		case errors.Is(err, payments.ErrOrderNotPayable):
 			writeError(w, http.StatusConflict, "order is not payable")
 		default:
@@ -136,6 +138,8 @@ func (a *api) handleCODConfirmPayment(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, payments.ErrIdempotencyKey):
 			writeError(w, http.StatusBadRequest, "idempotency key is required")
+		case errors.Is(err, payments.ErrCODDisabled):
+			writeError(w, http.StatusConflict, "cod payments are disabled")
 		case errors.Is(err, payments.ErrOrderNotPayable):
 			writeError(w, http.StatusConflict, "order is not payable")
 		default:

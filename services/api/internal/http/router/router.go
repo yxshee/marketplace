@@ -159,6 +159,12 @@ func New(cfg config.Config) (http.Handler, error) {
 				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionModerateProducts))
 				adminRoutes.Patch("/admin/moderation/products/{productID}", apiHandlers.handleAdminModerateProduct)
 			})
+
+			private.Group(func(adminRoutes chi.Router) {
+				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManagePaymentSettings))
+				adminRoutes.Get("/admin/settings/payments", apiHandlers.handleAdminPaymentSettingsGet)
+				adminRoutes.Patch("/admin/settings/payments", apiHandlers.handleAdminPaymentSettingsPatch)
+			})
 		})
 	})
 

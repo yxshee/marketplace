@@ -66,3 +66,12 @@ export const vendorRegisterSchema = z.object({
     .regex(/^[a-z0-9-]+$/),
   display_name: z.string().trim().min(2).max(80),
 });
+
+export const paymentSettingsUpdateSchema = z
+  .object({
+    stripe_enabled: z.boolean().optional(),
+    cod_enabled: z.boolean().optional(),
+  })
+  .refine((value) => value.stripe_enabled !== undefined || value.cod_enabled !== undefined, {
+    message: "at least one settings field is required",
+  });
