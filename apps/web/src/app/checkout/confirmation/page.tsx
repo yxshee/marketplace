@@ -17,6 +17,9 @@ const first = (value: string | string[] | undefined): string | undefined => {
 export default async function CheckoutConfirmationPage({ searchParams }: ConfirmationPageProps) {
   const params = await searchParams;
   const orderID = first(params.orderId);
+  const paymentStatusParam = first(params.paymentStatus);
+  const paymentProviderRef = first(params.paymentProviderRef);
+  const flowError = first(params.error);
 
   if (!orderID) {
     return (
@@ -56,6 +59,7 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Order confirmation</p>
         <h1 className="font-display text-4xl font-semibold leading-tight">Order placed successfully</h1>
         <p className="text-sm text-muted">Order ID: {order.id}</p>
+        {flowError ? <p className="text-sm text-muted">Payment note: {flowError}</p> : null}
       </header>
 
       <section className="space-y-3">
@@ -101,7 +105,9 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
             <span>Total</span>
             <span>{formatUSD(order.total_cents)}</span>
           </div>
-          <p className="mt-1 text-xs text-muted">Payment state for this milestone: pending payment.</p>
+          <p className="mt-1 text-xs text-muted">
+            Payment state: {paymentStatusParam ?? order.status}. {paymentProviderRef ? `Reference: ${paymentProviderRef}.` : ""}
+          </p>
         </div>
       </aside>
 

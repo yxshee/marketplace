@@ -7,12 +7,14 @@ import type {
   CatalogSearchParams,
   CheckoutQuoteResponse,
   OrderResponse,
+  StripeIntentResponse,
 } from "@marketplace/shared/contracts/api";
 import {
   cartItemMutationSchema,
   cartItemQtySchema,
   catalogSearchSchema,
   checkoutPlaceOrderSchema,
+  stripeCreateIntentSchema,
 } from "@marketplace/shared/schemas/common";
 import { fallbackCategories, fallbackProducts, fallbackVendorNameByID } from "@/lib/catalog-fallback";
 
@@ -255,6 +257,18 @@ export const placeOrder = async (
 
 export const getOrderByID = async (orderID: string, guestToken?: string): Promise<ApiCallResult<OrderResponse>> => {
   return fetchJSON<OrderResponse>(`/orders/${orderID}`, {
+    guestToken,
+  });
+};
+
+export const createStripePaymentIntent = async (
+  input: { order_id: string; idempotency_key: string },
+  guestToken?: string,
+): Promise<ApiCallResult<StripeIntentResponse>> => {
+  const parsed = stripeCreateIntentSchema.parse(input);
+  return fetchJSON<StripeIntentResponse>("/payments/stripe/intent", {
+    method: "POST",
+    body: parsed,
     guestToken,
   });
 };

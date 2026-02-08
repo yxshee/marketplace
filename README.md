@@ -47,6 +47,13 @@ cd apps/web && pnpm dev
 cd services/api && go run ./cmd/server
 ```
 
+### API Stripe configuration
+- `API_STRIPE_MODE`:
+  - `mock` (default) for local/test, creates deterministic mock intents.
+  - `live` for real Stripe API calls.
+- `API_STRIPE_SECRET_KEY`: required when `API_STRIPE_MODE=live`.
+- `API_STRIPE_WEBHOOK_SECRET`: secret used to verify `Stripe-Signature` on webhook events.
+
 ## Branch & PR Policy
 - Use branch names:
   - `feat/<area>-<short-scope>`

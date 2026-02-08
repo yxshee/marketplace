@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { placeOrderAction } from "@/app/actions/cart";
+import { placeOrderAction, placeOrderWithStripeAction } from "@/app/actions/cart";
 import { getCheckoutQuote } from "@/lib/api-client";
 import { formatUSD } from "@/lib/formatters";
 
@@ -109,15 +109,27 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
           <p className="mt-1 text-xs text-muted">Taxes are already included in displayed prices.</p>
         </div>
 
-        <form action={placeOrderAction} className="mt-4">
+        <form action={placeOrderWithStripeAction} className="mt-4">
           <input name="idempotency_key" type="hidden" value={idempotencyKey} />
           <button
             className="w-full rounded-sm border border-ink bg-ink px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black"
             type="submit"
           >
-            Place order
+            Pay online with Stripe
           </button>
         </form>
+        <form action={placeOrderAction} className="mt-2">
+          <input name="idempotency_key" type="hidden" value={`${idempotencyKey}_cod`} />
+          <button
+            className="w-full rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-white"
+            type="submit"
+          >
+            Place order with cash on delivery
+          </button>
+        </form>
+        <p className="mt-2 text-xs text-muted">
+          Stripe flow creates a payment intent and awaits secure confirmation; COD keeps payment pending.
+        </p>
 
         <div className="mt-3 text-right">
           <Link className="text-sm underline-offset-4 hover:underline" href="/cart">

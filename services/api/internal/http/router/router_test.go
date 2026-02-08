@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stripe/stripe-go/v83/webhook"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
 )
 
@@ -411,4 +412,168 @@ func TestCheckoutCreatesMultiShipmentAndIdempotentOrder(t *testing.T) {
 	if cartPayload.ItemCount != 0 {
 		t.Fatalf("expected empty cart after order placement, got item_count=%d", cartPayload.ItemCount)
 	}
+}
+
+func TestStripeIntentAndWebhookFlow(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	cfg.StripeWebhookSecret = "whsec_router_test"
+	r := mustRouterWithConfig(t, cfg)
+
+	catalogRes := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products", nil, "")
+	if catalogRes.Code != http.StatusOK {
+		t.Fatalf("catalog status=%d body=%s", catalogRes.Code, catalogRes.Body.String())
+	}
+
+	var catalogPayload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(catalogRes.Body.Bytes(), &catalogPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(catalogPayload.Items) == 0 {
+		t.Fatal("expected at least one seeded product")
+	}
+
+	guestHeaders := map[string]string{guestTokenHeader: "gst_test_stripe_flow"}
+	addRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+		"product_id": catalogPayload.Items[0].ID,
+		"qty":        1,
+	}, "", guestHeaders)
+	if addRes.Code != http.StatusOK {
+		t.Fatalf("add cart item status=%d body=%s", addRes.Code, addRes.Body.String())
+	}
+
+	orderRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-stripe-order-1",
+	}, "", guestHeaders)
+	if orderRes.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", orderRes.Code, orderRes.Body.String())
+	}
+
+	var orderPayload struct {
+		Order struct {
+			ID string `json:"id"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderRes.Body.Bytes(), &orderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	intentRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/stripe/intent", map[string]interface{}{
+		"order_id":        orderPayload.Order.ID,
+		"idempotency_key": "idem-stripe-intent-1",
+	}, "", guestHeaders)
+	if intentRes.Code != http.StatusCreated {
+		t.Fatalf("create stripe intent status=%d body=%s", intentRes.Code, intentRes.Body.String())
+	}
+
+	var intentPayload struct {
+		ID          string `json:"id"`
+		ProviderRef string `json:"provider_ref"`
+		Status      string `json:"status"`
+	}
+	if err := json.Unmarshal(intentRes.Body.Bytes(), &intentPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if intentPayload.Status != "pending" {
+		t.Fatalf("expected pending intent status, got %s", intentPayload.Status)
+	}
+
+	webhookBody, webhookSignature := signedStripeWebhook(t, cfg.StripeWebhookSecret, "evt_router_1", "payment_intent.succeeded", intentPayload.ProviderRef)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", bytes.NewBuffer(webhookBody))
+	req.Header.Set(stripeSignatureHeader, webhookSignature)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("stripe webhook status=%d body=%s", rr.Code, rr.Body.String())
+	}
+
+	var webhookPayload struct {
+		Processed bool `json:"processed"`
+		Duplicate bool `json:"duplicate"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &webhookPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !webhookPayload.Processed || webhookPayload.Duplicate {
+		t.Fatalf("expected webhook processed=true duplicate=false, got processed=%t duplicate=%t", webhookPayload.Processed, webhookPayload.Duplicate)
+	}
+
+	duplicateReq := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", bytes.NewBuffer(webhookBody))
+	duplicateReq.Header.Set(stripeSignatureHeader, webhookSignature)
+	duplicateRes := httptest.NewRecorder()
+	r.ServeHTTP(duplicateRes, duplicateReq)
+	if duplicateRes.Code != http.StatusOK {
+		t.Fatalf("duplicate webhook status=%d body=%s", duplicateRes.Code, duplicateRes.Body.String())
+	}
+
+	var duplicatePayload struct {
+		Processed bool `json:"processed"`
+		Duplicate bool `json:"duplicate"`
+	}
+	if err := json.Unmarshal(duplicateRes.Body.Bytes(), &duplicatePayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if duplicatePayload.Processed || !duplicatePayload.Duplicate {
+		t.Fatalf("expected duplicate webhook processed=false duplicate=true, got processed=%t duplicate=%t", duplicatePayload.Processed, duplicatePayload.Duplicate)
+	}
+
+	orderAfterWebhook := requestJSONWithHeaders(t, r, http.MethodGet, "/api/v1/orders/"+orderPayload.Order.ID, nil, "", guestHeaders)
+	if orderAfterWebhook.Code != http.StatusOK {
+		t.Fatalf("get order status=%d body=%s", orderAfterWebhook.Code, orderAfterWebhook.Body.String())
+	}
+	var orderAfterPayload struct {
+		Order struct {
+			Status string `json:"status"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderAfterWebhook.Body.Bytes(), &orderAfterPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if orderAfterPayload.Order.Status != "paid" {
+		t.Fatalf("expected order status paid after webhook, got %s", orderAfterPayload.Order.Status)
+	}
+}
+
+func TestStripeWebhookRejectsInvalidSignature(t *testing.T) {
+	cfg := testConfig()
+	cfg.StripeWebhookSecret = "whsec_router_test"
+	r := mustRouterWithConfig(t, cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", bytes.NewBufferString(`{"id":"evt_invalid","type":"payment_intent.succeeded"}`))
+	req.Header.Set(stripeSignatureHeader, "t=1,v1=invalid")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid signature to return 400, got status=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func signedStripeWebhook(t *testing.T, secret, eventID, eventType, paymentIntentID string) ([]byte, string) {
+	t.Helper()
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"id":   eventID,
+		"type": eventType,
+		"data": map[string]interface{}{
+			"object": map[string]interface{}{
+				"id": paymentIntentID,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	signed := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{
+		Payload:   payload,
+		Secret:    secret,
+		Timestamp: time.Now().UTC(),
+		Scheme:    "v1",
+	})
+	return signed.Payload, signed.Header
 }
