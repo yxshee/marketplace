@@ -1,6 +1,9 @@
 package auth
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Role identifies a principal's permission context in the marketplace.
 type Role string
@@ -18,14 +21,21 @@ const (
 type Permission string
 
 const (
-	PermissionViewCatalog            Permission = "view_catalog"
-	PermissionManageVendorProducts   Permission = "manage_vendor_products"
-	PermissionModerateProducts       Permission = "moderate_products"
-	PermissionManagePromotions       Permission = "manage_promotions"
-	PermissionManageCommission       Permission = "manage_commission"
-	PermissionManageVendorVerify     Permission = "manage_vendor_verification"
-	PermissionViewAuditLogs          Permission = "view_audit_logs"
-	PermissionManageShipmentStatuses Permission = "manage_shipment_statuses"
+	PermissionViewCatalog              Permission = "view_catalog"
+	PermissionManageVendorProducts     Permission = "manage_vendor_products"
+	PermissionManageVendorCoupons      Permission = "manage_vendor_coupons"
+	PermissionManageShipmentOrders     Permission = "manage_shipment_orders"
+	PermissionManageRefundDecisions    Permission = "manage_refund_decisions"
+	PermissionViewVendorAnalytics      Permission = "view_vendor_analytics"
+	PermissionManageVendorVerification Permission = "manage_vendor_verification"
+	PermissionModerateProducts         Permission = "moderate_products"
+	PermissionManageOrdersOperations   Permission = "manage_orders_operations"
+	PermissionManagePromotions         Permission = "manage_promotions"
+	PermissionManageCommission         Permission = "manage_commission"
+	PermissionManagePaymentSettings    Permission = "manage_payment_settings"
+	PermissionManageTaxSettings        Permission = "manage_tax_settings"
+	PermissionViewAdminAnalytics       Permission = "view_admin_analytics"
+	PermissionViewAuditLogs            Permission = "view_audit_logs"
 )
 
 var permissionMatrix = map[Role]map[Permission]bool{
@@ -33,36 +43,75 @@ var permissionMatrix = map[Role]map[Permission]bool{
 		PermissionViewCatalog: true,
 	},
 	RoleVendorOwner: {
-		PermissionViewCatalog:            true,
-		PermissionManageVendorProducts:   true,
-		PermissionManageShipmentStatuses: true,
+		PermissionViewCatalog:           true,
+		PermissionManageVendorProducts:  true,
+		PermissionManageVendorCoupons:   true,
+		PermissionManageShipmentOrders:  true,
+		PermissionManageRefundDecisions: true,
+		PermissionViewVendorAnalytics:   true,
 	},
 	RoleSupport: {
-		PermissionViewCatalog:        true,
-		PermissionManageVendorVerify: true,
-		PermissionViewAuditLogs:      true,
+		PermissionViewCatalog:              true,
+		PermissionManageOrdersOperations:   true,
+		PermissionManageVendorVerification: true,
+		PermissionViewAuditLogs:            true,
 	},
 	RoleFinance: {
-		PermissionViewCatalog:      true,
-		PermissionManagePromotions: true,
-		PermissionManageCommission: true,
-		PermissionViewAuditLogs:    true,
+		PermissionViewCatalog:           true,
+		PermissionManagePromotions:      true,
+		PermissionManageCommission:      true,
+		PermissionManagePaymentSettings: true,
+		PermissionManageTaxSettings:     true,
+		PermissionViewAdminAnalytics:    true,
+		PermissionViewAuditLogs:         true,
 	},
 	RoleCatalogModerator: {
 		PermissionViewCatalog:      true,
 		PermissionModerateProducts: true,
 		PermissionViewAuditLogs:    true,
 	},
-	RoleSuperAdmin: {
-		PermissionViewCatalog:            true,
-		PermissionManageVendorProducts:   true,
-		PermissionModerateProducts:       true,
-		PermissionManagePromotions:       true,
-		PermissionManageCommission:       true,
-		PermissionManageVendorVerify:     true,
-		PermissionViewAuditLogs:          true,
-		PermissionManageShipmentStatuses: true,
-	},
+	RoleSuperAdmin: {},
+}
+
+func init() {
+	for permission := range allPermissionsSet() {
+		permissionMatrix[RoleSuperAdmin][permission] = true
+	}
+}
+
+func allPermissionsSet() map[Permission]struct{} {
+	all := make(map[Permission]struct{})
+	for _, rolePerms := range permissionMatrix {
+		for permission := range rolePerms {
+			all[permission] = struct{}{}
+		}
+	}
+	return all
+}
+
+// Roles returns the list of known roles in stable order.
+func Roles() []Role {
+	roles := []Role{
+		RoleBuyer,
+		RoleVendorOwner,
+		RoleSupport,
+		RoleFinance,
+		RoleCatalogModerator,
+		RoleSuperAdmin,
+	}
+	return roles
+}
+
+// Permissions returns all known permissions in stable order.
+func Permissions() []Permission {
+	all := make([]Permission, 0, len(allPermissionsSet()))
+	for permission := range allPermissionsSet() {
+		all = append(all, permission)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i] < all[j]
+	})
+	return all
 }
 
 func (r Role) String() string {
