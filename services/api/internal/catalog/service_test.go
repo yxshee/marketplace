@@ -32,14 +32,80 @@ func TestModerationWorkflow(t *testing.T) {
 	}
 }
 
-func TestListVisibleProductsRespectsVendorVisibility(t *testing.T) {
+func TestSearchFilteringSortingAndPagination(t *testing.T) {
 	service := NewService()
-	product := service.CreateProduct("usr_1", "ven_1", "Notebook", "Simple notebook", "USD", 2499)
-	_, _ = service.SubmitForModeration(product.ID, "usr_1", "ven_1")
-	_, _ = service.ReviewProduct(product.ID, "admin_1", ModerationDecisionApprove, "")
+	service.UpsertCategory("notebooks", "Notebooks")
+	service.UpsertCategory("prints", "Prints")
 
-	visible := service.ListVisibleProducts(func(vendorID string) bool { return false })
-	if len(visible) != 0 {
-		t.Fatalf("expected 0 visible product, got %d", len(visible))
+	first := service.CreateProductWithInput(CreateProductInput{
+		OwnerUserID:       "usr_1",
+		VendorID:          "ven_1",
+		Title:             "Graph Paper Notebook",
+		Description:       "Dotted notebook for sketching",
+		CategorySlug:      "notebooks",
+		Tags:              []string{"paper", "graph"},
+		PriceInclTaxCents: 1999,
+		Currency:          "USD",
+		RatingAverage:     4.8,
+		Status:            ProductStatusApproved,
+	})
+	_ = first
+
+	second := service.CreateProductWithInput(CreateProductInput{
+		OwnerUserID:       "usr_2",
+		VendorID:          "ven_2",
+		Title:             "Poster Print",
+		Description:       "A minimal line-art print",
+		CategorySlug:      "prints",
+		Tags:              []string{"wall", "art"},
+		PriceInclTaxCents: 4999,
+		Currency:          "USD",
+		RatingAverage:     4.2,
+		Status:            ProductStatusApproved,
+	})
+	_ = second
+
+	third := service.CreateProductWithInput(CreateProductInput{
+		OwnerUserID:       "usr_3",
+		VendorID:          "ven_3",
+		Title:             "Pocket Notebook",
+		Description:       "Compact notebook",
+		CategorySlug:      "notebooks",
+		Tags:              []string{"paper"},
+		PriceInclTaxCents: 999,
+		Currency:          "USD",
+		RatingAverage:     3.9,
+		Status:            ProductStatusApproved,
+	})
+	_ = third
+
+	result := service.Search(SearchParams{
+		Query:    "notebook",
+		Category: "notebooks",
+		SortBy:   SortPriceAsc,
+		Limit:    10,
+		Offset:   0,
+	}, func(vendorID string) bool { return vendorID != "ven_2" })
+
+	if result.Total != 2 {
+		t.Fatalf("expected 2 results, got %d", result.Total)
+	}
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 paged items, got %d", len(result.Items))
+	}
+	if result.Items[0].PriceInclTaxCents > result.Items[1].PriceInclTaxCents {
+		t.Fatalf("expected ascending price order")
+	}
+
+	paged := service.Search(SearchParams{
+		SortBy: SortNewest,
+		Limit:  1,
+		Offset: 1,
+	}, func(vendorID string) bool { return true })
+	if paged.Total != 3 {
+		t.Fatalf("expected total 3, got %d", paged.Total)
+	}
+	if len(paged.Items) != 1 {
+		t.Fatalf("expected one paged item, got %d", len(paged.Items))
 	}
 }

@@ -16,12 +16,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
 
+  /catalog/categories:
+    get:
+      summary: List buyer-facing catalog categories
+      responses:
+        "200":
+          description: Available categories
+
   /catalog/products:
     get:
       summary: List publicly visible products
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: vendor
+          schema:
+            type: string
+        - in: query
+          name: price_min
+          schema:
+            type: integer
+        - in: query
+          name: price_max
+          schema:
+            type: integer
+        - in: query
+          name: min_rating
+          schema:
+            type: number
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [relevance, newest, price_low_high, price_high_low, rating]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
       responses:
         "200":
           description: Visible approved products from verified vendors
+
+  /catalog/products/{productID}:
+    get:
+      summary: Get buyer-facing product detail
+      parameters:
+        - in: path
+          name: productID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product detail
 
   /auth/register:
     post:
