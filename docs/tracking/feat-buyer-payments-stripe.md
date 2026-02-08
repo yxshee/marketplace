@@ -14,4 +14,4 @@ Status: Complete - Stripe intent and webhook flow implementation.
 - [x] pnpm -r build
 - [x] go test ./... (API)
 - [x] UI screenshots included (if UI changes)
-- [ ] Proof outputs added to PR description
+- [x] Proof outputs added to PR description
