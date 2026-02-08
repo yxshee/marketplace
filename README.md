@@ -104,27 +104,19 @@ Security-first flows for auth, RBAC, payments, uploads, and complete auditabilit
 
 ```mermaid
 flowchart LR
-  B[🛍️ Buyer UI] --> W[🌐 Next.js Web App]
-  V[🏪 Vendor UI] --> W
-  A[👨‍💼 Admin UI] --> W
-  W -->|REST /api/v1| API[⚙️ Go API Chi]
+  B["Buyer UI"] --> W["Next.js Web App"]
+  V["Vendor UI"] --> W
+  A["Admin UI"] --> W
+  W -- "REST /api/v1" --> API["Go API (Chi)"]
 
-  API --> PG[🗄️ PostgreSQL]
-  API --> R[⚡ Redis]
-  API --> S3[📦 S3 Storage]
-  API --> ST[💳 Stripe]
+  API --> PG["PostgreSQL"]
+  API --> R["Redis"]
+  API --> S3["S3-Compatible Storage"]
+  API --> ST["Stripe"]
 
-  ST -->|🔔 Webhook| API
-  API --> INV[📄 PDF Invoices]
-  API --> EVT[📜 Audit Logs]
-  
-  style B fill:#e1f5fe
-  style V fill:#f3e5f5
-  style A fill:#fff3e0
-  style W fill:#c8e6c9
-  style API fill:#ffccbc
-  style PG fill:#b2dfdb
-  style ST fill:#d1c4e9
+  ST -- "Webhook" --> API
+  API --> INV["PDF Invoices"]
+  API --> EVT["Audit Logs"]
 ```
 
 </div>
@@ -551,18 +543,11 @@ across categories
 
 ```mermaid
 flowchart LR
-  A[📝 Push Code] --> B[🔍 GitHub Actions CI]
-  B --> C{✅ Tests Pass?}
-  C -->|Yes| D[🌐 Deploy Web to Vercel]
-  C -->|Yes| E[⚙️ Deploy API to Render]
-  C -->|No| F[❌ Block Deployment]
-  
-  style A fill:#e3f2fd
-  style B fill:#fff3e0
-  style C fill:#f3e5f5
-  style D fill:#c8e6c9
-  style E fill:#c8e6c9
-  style F fill:#ffcdd2
+  A["Push Code"] --> B["GitHub Actions CI"]
+  B --> C{"Tests pass?"}
+  C -- "Yes" --> D["Deploy Web to Vercel"]
+  C -- "Yes" --> E["Deploy API to Render"]
+  C -- "No" --> F["Block Deployment"]
 ```
 
 </div>
