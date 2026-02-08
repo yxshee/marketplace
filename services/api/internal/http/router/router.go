@@ -57,6 +57,9 @@ func New(cfg config.Config) (http.Handler, error) {
 		catalogService: catalog.NewService(),
 		defaultCommBPS: cfg.DefaultCommission,
 	}
+	if cfg.Environment == "development" {
+		apiHandlers.seedDevelopmentCatalog()
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -68,7 +71,9 @@ func New(cfg config.Config) (http.Handler, error) {
 
 	r.Route("/api/v1", func(v1 chi.Router) {
 		v1.Get("/health", healthHandler)
+		v1.Get("/catalog/categories", apiHandlers.handleCatalogCategories)
 		v1.Get("/catalog/products", apiHandlers.handleCatalogList)
+		v1.Get("/catalog/products/{productID}", apiHandlers.handleCatalogProductDetail)
 		v1.Post("/auth/register", apiHandlers.handleAuthRegister)
 		v1.Post("/auth/login", apiHandlers.handleAuthLogin)
 		v1.Post("/auth/refresh", apiHandlers.handleAuthRefresh)

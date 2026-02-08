@@ -3,6 +3,8 @@ package router
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
@@ -147,8 +149,28 @@ func (a *api) handleAdminModerateProduct(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, updatedProduct)
 }
 
-func (a *api) handleCatalogList(w http.ResponseWriter, _ *http.Request) {
-	products := a.catalogService.ListVisibleProducts(func(vendorID string) bool {
+func (a *api) handleCatalogList(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	category := strings.TrimSpace(r.URL.Query().Get("category"))
+	vendorID := strings.TrimSpace(r.URL.Query().Get("vendor"))
+	sortBy := catalog.SortOption(strings.TrimSpace(r.URL.Query().Get("sort")))
+	limit := parseQueryInt(r, "limit", 20)
+	offset := parseQueryInt(r, "offset", 0)
+	priceMin := parseQueryInt64(r, "price_min", 0)
+	priceMax := parseQueryInt64(r, "price_max", 0)
+	minRating := parseQueryFloat64(r, "min_rating", 0)
+
+	result := a.catalogService.Search(catalog.SearchParams{
+		Query:     query,
+		Category:  category,
+		VendorID:  vendorID,
+		PriceMin:  priceMin,
+		PriceMax:  priceMax,
+		MinRating: minRating,
+		SortBy:    sortBy,
+		Limit:     limit,
+		Offset:    offset,
+	}, func(vendorID string) bool {
 		registeredVendor, exists := a.vendorService.GetByID(vendorID)
 		if !exists {
 			return false
@@ -157,7 +179,75 @@ func (a *api) handleCatalogList(w http.ResponseWriter, _ *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"items": products,
-		"count": len(products),
+		"items":  result.Items,
+		"total":  result.Total,
+		"limit":  limit,
+		"offset": offset,
 	})
+}
+
+func (a *api) handleCatalogProductDetail(w http.ResponseWriter, r *http.Request) {
+	productID := chi.URLParam(r, "productID")
+	product, exists := a.catalogService.GetProductByID(productID)
+	if !exists || product.Status != catalog.ProductStatusApproved {
+		writeError(w, http.StatusNotFound, "product not found")
+		return
+	}
+
+	registeredVendor, vendorExists := a.vendorService.GetByID(product.VendorID)
+	if !vendorExists || registeredVendor.VerificationState != vendor.VerificationVerified {
+		writeError(w, http.StatusNotFound, "product not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"item": product,
+		"vendor": map[string]string{
+			"id":          registeredVendor.ID,
+			"slug":        registeredVendor.Slug,
+			"displayName": registeredVendor.DisplayName,
+		},
+	})
+}
+
+func (a *api) handleCatalogCategories(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"items": a.catalogService.ListCategories(),
+	})
+}
+
+func parseQueryInt(r *http.Request, key string, fallback int) int {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func parseQueryInt64(r *http.Request, key string, fallback int64) int64 {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func parseQueryFloat64(r *http.Request, key string, fallback float64) float64 {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return fallback
+	}
+	return value
 }
