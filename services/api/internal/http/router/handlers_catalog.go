@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendor"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
 
 type vendorCreateProductRequest struct {
@@ -83,7 +83,7 @@ func (a *api) handleVendorSubmitModeration(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotFound, "vendor not found")
 		return
 	}
-	if registeredVendor.VerificationState != vendor.VerificationVerified {
+	if registeredVendor.VerificationState != vendors.VerificationVerified {
 		writeError(w, http.StatusForbidden, "vendor must be verified before submission")
 		return
 	}
@@ -175,7 +175,7 @@ func (a *api) handleCatalogList(w http.ResponseWriter, r *http.Request) {
 		if !exists {
 			return false
 		}
-		return registeredVendor.VerificationState == vendor.VerificationVerified
+		return registeredVendor.VerificationState == vendors.VerificationVerified
 	})
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -195,7 +195,7 @@ func (a *api) handleCatalogProductDetail(w http.ResponseWriter, r *http.Request)
 	}
 
 	registeredVendor, vendorExists := a.vendorService.GetByID(product.VendorID)
-	if !vendorExists || registeredVendor.VerificationState != vendor.VerificationVerified {
+	if !vendorExists || registeredVendor.VerificationState != vendors.VerificationVerified {
 		writeError(w, http.StatusNotFound, "product not found")
 		return
 	}
