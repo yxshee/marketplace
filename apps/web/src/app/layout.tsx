@@ -18,16 +18,17 @@ const navLinks = [
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <header className="border-b border-border bg-white/90 backdrop-blur">
+      <body data-surface-mode="tinted">
+        <header className="border-b border-border bg-surface backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-            <Link className="font-display text-base font-semibold" href="/">
-              marketplace-gumroad-inspired
+            <Link className="inline-flex items-center gap-2 font-display text-base font-semibold tracking-tight" href="/">
+              <span aria-hidden className="brand-dot" />
+              <span>marketplace-gumroad-inspired</span>
             </Link>
             <nav aria-label="Primary" className="flex items-center gap-2 text-sm text-muted sm:gap-3">
               {navLinks.map((item) => (
                 <Link
-                  className="rounded-sm px-2 py-1 transition-colors hover:bg-black/5 hover:text-ink"
+                  className="rounded-full border border-transparent px-3 py-1.5 transition-all duration-150 hover:-translate-y-px hover:border-border hover:bg-surface-soft hover:text-ink"
                   href={item.href}
                   key={item.href}
                 >
