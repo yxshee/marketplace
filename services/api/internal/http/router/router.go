@@ -114,6 +114,22 @@ func New(cfg config.Config) (http.Handler, error) {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
+	maxBodyBytes := cfg.MaxRequestBodyBytes
+	if maxBodyBytes <= 0 {
+		maxBodyBytes = 1 << 20
+	}
+	r.Use(middleware.RequestSize(maxBodyBytes))
+	r.Use(securityHeaders)
+	if cfg.EnableRateLimit {
+		globalLimiter := newRequestRateLimiter(cfg.GlobalRateLimitRPS, cfg.GlobalRateLimitBurst, 2*time.Minute)
+		r.Use(globalLimiter.middleware)
+	}
+
+	authRateLimitMiddleware := func(next http.Handler) http.Handler { return next }
+	if cfg.EnableRateLimit {
+		authLimiter := newRequestRateLimiter(cfg.AuthRateLimitRPS, cfg.AuthRateLimitBurst, 10*time.Minute)
+		authRateLimitMiddleware = authLimiter.middleware
+	}
 
 	r.Get("/health", healthHandler)
 
@@ -140,9 +156,9 @@ func New(cfg config.Config) (http.Handler, error) {
 			buyerFlow.Get("/invoices/{orderID}/download", apiHandlers.handleInvoiceDownload)
 		})
 
-		v1.Post("/auth/register", apiHandlers.handleAuthRegister)
-		v1.Post("/auth/login", apiHandlers.handleAuthLogin)
-		v1.Post("/auth/refresh", apiHandlers.handleAuthRefresh)
+		v1.With(authRateLimitMiddleware).Post("/auth/register", apiHandlers.handleAuthRegister)
+		v1.With(authRateLimitMiddleware).Post("/auth/login", apiHandlers.handleAuthLogin)
+		v1.With(authRateLimitMiddleware).Post("/auth/refresh", apiHandlers.handleAuthRefresh)
 
 		v1.Group(func(private chi.Router) {
 			private.Use(apiHandlers.authenticate)

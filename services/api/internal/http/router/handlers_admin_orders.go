@@ -15,6 +15,11 @@ type adminOrderStatusUpdateRequest struct {
 
 func (a *api) handleAdminOrdersList(w http.ResponseWriter, r *http.Request) {
 	statusFilter := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("status")))
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	items, err := a.commerce.ListOrders(statusFilter)
 	if err != nil {
 		if errors.Is(err, commerce.ErrInvalidOrderStatus) {
@@ -24,10 +29,14 @@ func (a *api) handleAdminOrdersList(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "unable to list orders")
 		return
 	}
+	total := len(items)
+	start, end := paginate(total, limit, offset)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"items": items,
-		"total": len(items),
+		"items":  items[start:end],
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
 	})
 }
 

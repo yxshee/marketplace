@@ -18,16 +18,25 @@ func (a *api) handleVendorListShipments(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	shipments, err := a.commerce.ListVendorShipments(registeredVendor.ID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "unable to list vendor shipments")
 		return
 	}
+	total := len(shipments)
+	start, end := paginate(total, limit, offset)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"items": shipments,
-		"total": len(shipments),
+		"items":  shipments[start:end],
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
 	})
 }
 

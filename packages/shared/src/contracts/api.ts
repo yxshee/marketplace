@@ -41,6 +41,8 @@ export interface VendorProfile {
 export interface AdminVendorListResponse {
   items: VendorProfile[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface AdminPromotion {
@@ -58,6 +60,8 @@ export interface AdminPromotion {
 export interface AdminPromotionListResponse {
   items: AdminPromotion[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface AuditLogEntry {
@@ -166,6 +170,8 @@ export interface AdminVendorAnalyticsItem {
 export interface AdminAnalyticsVendorsResponse {
   items: AdminVendorAnalyticsItem[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface VendorProduct {
@@ -189,11 +195,15 @@ export interface VendorProduct {
 export interface VendorProductListResponse {
   items: VendorProduct[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface AdminModerationProductListResponse {
   items: VendorProduct[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface VendorCoupon {
@@ -374,6 +384,8 @@ export interface VendorShipment {
 export interface VendorShipmentListResponse {
   items: VendorShipment[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface VendorAnalyticsConversionFunnel {
@@ -466,6 +478,8 @@ export interface BuyerRefundRequestCreateResponse {
 export interface VendorRefundRequestListResponse {
   items: RefundRequest[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface Order {
@@ -497,6 +511,8 @@ export type OrderStatus = "pending_payment" | "cod_confirmed" | "paid" | "paymen
 export interface AdminOrderListResponse {
   items: Order[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface StripeIntentResponse {
