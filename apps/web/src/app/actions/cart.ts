@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { addCartItem, createStripePaymentIntent, deleteCartItem, placeOrder, updateCartItem } from "@/lib/api-client";
+import {
+  addCartItem,
+  confirmCODPayment,
+  createStripePaymentIntent,
+  deleteCartItem,
+  placeOrder,
+  updateCartItem,
+} from "@/lib/api-client";
 
 const guestCookieName = "mkt_guest_token";
 
@@ -96,25 +103,42 @@ export async function deleteCartItemAction(formData: FormData): Promise<never> {
   redirect("/cart");
 }
 
-export async function placeOrderAction(formData: FormData): Promise<never> {
+export async function placeOrderWithCODAction(formData: FormData): Promise<never> {
   const idempotencyKey = String(formData.get("idempotency_key") ?? "").trim();
   if (!idempotencyKey) {
     redirect("/checkout?error=missing-idempotency-key");
   }
 
   let orderID = "";
+  let guestToken = await readGuestToken();
   try {
-    const token = await readGuestToken();
-    const response = await placeOrder({ idempotency_key: idempotencyKey }, token);
-    await persistGuestToken(response.guestToken);
-    revalidatePath("/cart");
-    revalidatePath("/checkout");
-    orderID = response.payload.order.id;
+    const placeOrderResponse = await placeOrder({ idempotency_key: idempotencyKey }, guestToken);
+    guestToken = placeOrderResponse.guestToken ?? guestToken;
+    await persistGuestToken(guestToken);
+    orderID = placeOrderResponse.payload.order.id;
   } catch {
     redirect("/checkout?error=place-order-failed");
   }
 
-  redirect(`/checkout/confirmation?orderId=${encodeURIComponent(orderID)}`);
+  try {
+    const codResponse = await confirmCODPayment(
+      {
+        order_id: orderID,
+        idempotency_key: `cod_${idempotencyKey}`,
+      },
+      guestToken,
+    );
+    await persistGuestToken(codResponse.guestToken ?? guestToken);
+    revalidatePath("/cart");
+    revalidatePath("/checkout");
+    redirect(
+      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=cod&paymentProviderRef=${encodeURIComponent(codResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(codResponse.payload.status)}`,
+    );
+  } catch {
+    redirect(
+      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=cod&paymentStatus=pending_collection&error=cod-confirmation-failed`,
+    );
+  }
 }
 
 export async function placeOrderWithStripeAction(formData: FormData): Promise<never> {
@@ -146,9 +170,9 @@ export async function placeOrderWithStripeAction(formData: FormData): Promise<ne
     revalidatePath("/cart");
     revalidatePath("/checkout");
     redirect(
-      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentProviderRef=${encodeURIComponent(intentResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(intentResponse.payload.status)}`,
+      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=stripe&paymentProviderRef=${encodeURIComponent(intentResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(intentResponse.payload.status)}`,
     );
   } catch {
-    redirect(`/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentStatus=pending&error=stripe-intent-failed`);
+    redirect(`/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=stripe&paymentStatus=pending&error=stripe-intent-failed`);
   }
 }

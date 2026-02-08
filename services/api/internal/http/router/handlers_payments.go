@@ -16,8 +16,18 @@ type stripeCreateIntentRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`
 }
 
+type codConfirmPaymentRequest struct {
+	OrderID        string `json:"order_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
 type stripeIntentResponse struct {
 	payments.StripeIntent
+	GuestToken string `json:"guest_token,omitempty"`
+}
+
+type codPaymentResponse struct {
+	payments.CODPayment
 	GuestToken string `json:"guest_token,omitempty"`
 }
 
@@ -94,4 +104,48 @@ func (a *api) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *api) handleCODConfirmPayment(w http.ResponseWriter, r *http.Request) {
+	actor, guestToken := checkoutActor(r)
+
+	var req codConfirmPaymentRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	orderID := strings.TrimSpace(req.OrderID)
+	if orderID == "" {
+		writeError(w, http.StatusBadRequest, "order id is required")
+		return
+	}
+
+	order, found, err := a.commerce.GetOrder(actor, orderID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "unable to resolve order actor")
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "order not found")
+		return
+	}
+
+	payment, err := a.payments.ConfirmCODPayment(order, req.IdempotencyKey)
+	if err != nil {
+		switch {
+		case errors.Is(err, payments.ErrIdempotencyKey):
+			writeError(w, http.StatusBadRequest, "idempotency key is required")
+		case errors.Is(err, payments.ErrOrderNotPayable):
+			writeError(w, http.StatusConflict, "order is not payable")
+		default:
+			writeError(w, http.StatusBadRequest, "unable to confirm cod payment")
+		}
+		return
+	}
+
+	writeBuyerResponse(w, http.StatusCreated, codPaymentResponse{
+		CODPayment: payment,
+		GuestToken: guestToken,
+	}, guestToken)
 }

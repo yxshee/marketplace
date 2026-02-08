@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.5.0
+  version: 0.6.0
 servers:
   - url: /api/v1
 paths:
@@ -213,6 +213,24 @@ paths:
       responses:
         "201":
           description: Stripe payment intent created
+
+  /payments/cod/confirm:
+    post:
+      summary: Confirm a cash-on-delivery payment flow for a placed order
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CODConfirmPaymentRequest"
+      responses:
+        "201":
+          description: COD payment confirmation recorded
 
   /webhooks/stripe:
     post:
@@ -441,6 +459,16 @@ components:
       required: [idempotency_key]
 
     StripeCreateIntentRequest:
+      type: object
+      properties:
+        order_id:
+          type: string
+        idempotency_key:
+          type: string
+          minLength: 8
+      required: [order_id, idempotency_key]
+
+    CODConfirmPaymentRequest:
       type: object
       properties:
         order_id:
