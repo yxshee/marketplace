@@ -134,6 +134,14 @@ func TestMarkOrderPaymentStatuses(t *testing.T) {
 		t.Fatalf("PlaceOrder() error = %v", err)
 	}
 
+	codOrder, codConfirmed := svc.MarkOrderCODConfirmed(order.ID)
+	if !codConfirmed {
+		t.Fatal("expected order to be marked cod confirmed")
+	}
+	if codOrder.Status != OrderStatusCODConfirmed {
+		t.Fatalf("expected order status %s, got %s", OrderStatusCODConfirmed, codOrder.Status)
+	}
+
 	paidOrder, paid := svc.MarkOrderPaid(order.ID)
 	if !paid {
 		t.Fatal("expected order to be marked paid")
@@ -148,5 +156,13 @@ func TestMarkOrderPaymentStatuses(t *testing.T) {
 	}
 	if failedOrder.Status != OrderStatusPaid {
 		t.Fatalf("expected paid order to remain %s, got %s", OrderStatusPaid, failedOrder.Status)
+	}
+
+	codAfterPaid, codAfterPaidOK := svc.MarkOrderCODConfirmed(order.ID)
+	if !codAfterPaidOK {
+		t.Fatal("expected order lookup success for cod confirmation after paid")
+	}
+	if codAfterPaid.Status != OrderStatusPaid {
+		t.Fatalf("expected paid order to remain %s, got %s", OrderStatusPaid, codAfterPaid.Status)
 	}
 }

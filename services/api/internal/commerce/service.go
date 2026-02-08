@@ -14,6 +14,7 @@ const (
 	DefaultCurrency           = "USD"
 	DefaultShippingFeeCents   = int64(500)
 	OrderStatusPendingPayment = "pending_payment"
+	OrderStatusCODConfirmed   = "cod_confirmed"
 	OrderStatusPaid           = "paid"
 	OrderStatusPaymentFailed  = "payment_failed"
 	ShipmentStatusPending     = "pending"
@@ -451,6 +452,23 @@ func (s *Service) MarkOrderPaid(orderID string) (Order, bool) {
 		order.Status = OrderStatusPaid
 		s.ordersByID[order.ID] = order
 	}
+
+	return order, true
+}
+
+func (s *Service) MarkOrderCODConfirmed(orderID string) (Order, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	order, exists := s.ordersByID[strings.TrimSpace(orderID)]
+	if !exists {
+		return Order{}, false
+	}
+	if order.Status == OrderStatusPaid {
+		return order, true
+	}
+	order.Status = OrderStatusCODConfirmed
+	s.ordersByID[order.ID] = order
 
 	return order, true
 }

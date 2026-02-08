@@ -14,11 +14,14 @@ import (
 )
 
 const (
-	MethodStripe         = "stripe"
-	ProviderStripe       = "stripe"
-	PaymentStatusPending = "pending"
-	PaymentStatusSuccess = "succeeded"
-	PaymentStatusFailed  = "failed"
+	MethodStripe                   = "stripe"
+	MethodCOD                      = "cod"
+	ProviderStripe                 = "stripe"
+	ProviderCOD                    = "cod"
+	PaymentStatusPending           = "pending"
+	PaymentStatusPendingCollection = "pending_collection"
+	PaymentStatusSuccess           = "succeeded"
+	PaymentStatusFailed            = "failed"
 
 	stripeEventIntentSucceeded = "payment_intent.succeeded"
 	stripeEventIntentFailed    = "payment_intent.payment_failed"
@@ -39,6 +42,7 @@ type Config struct {
 	StripeClient           StripeClient
 	MarkOrderPaid          func(orderID string) bool
 	MarkOrderPaymentFailed func(orderID string) bool
+	MarkOrderCODConfirmed  func(orderID string) bool
 }
 
 type StripeIntent struct {
@@ -64,12 +68,26 @@ type WebhookResult struct {
 	PaymentStatus string `json:"payment_status,omitempty"`
 }
 
+type CODPayment struct {
+	ID          string    `json:"id"`
+	OrderID     string    `json:"order_id"`
+	Method      string    `json:"method"`
+	Status      string    `json:"status"`
+	Provider    string    `json:"provider"`
+	ProviderRef string    `json:"provider_ref"`
+	AmountCents int64     `json:"amount_cents"`
+	Currency    string    `json:"currency"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type Service struct {
 	mu              sync.Mutex
 	webhookSecret   string
 	stripeClient    StripeClient
 	markOrderPaid   func(orderID string) bool
 	markOrderFailed func(orderID string) bool
+	markOrderCOD    func(orderID string) bool
 	now             func() time.Time
 
 	paymentsByID      map[string]StripeIntent
@@ -77,6 +95,9 @@ type Service struct {
 	intentByRequestID map[string]string
 	providerToPayment map[string]string
 	processedEvents   map[string]struct{}
+	codPaymentsByID   map[string]CODPayment
+	codByRequestID    map[string]string
+	codByOrderID      map[string]string
 }
 
 type stripeWebhookEnvelope struct {
@@ -102,12 +123,16 @@ func NewService(cfg Config) *Service {
 		stripeClient:      client,
 		markOrderPaid:     cfg.MarkOrderPaid,
 		markOrderFailed:   cfg.MarkOrderPaymentFailed,
+		markOrderCOD:      cfg.MarkOrderCODConfirmed,
 		now:               func() time.Time { return time.Now().UTC() },
 		paymentsByID:      make(map[string]StripeIntent),
 		orderToPaymentID:  make(map[string]string),
 		intentByRequestID: make(map[string]string),
 		providerToPayment: make(map[string]string),
 		processedEvents:   make(map[string]struct{}),
+		codPaymentsByID:   make(map[string]CODPayment),
+		codByRequestID:    make(map[string]string),
+		codByOrderID:      make(map[string]string),
 	}
 }
 
@@ -175,6 +200,63 @@ func (s *Service) CreateStripeIntent(ctx context.Context, order commerce.Order, 
 	s.providerToPayment[intent.ProviderRef] = intent.ID
 
 	return intent, nil
+}
+
+func (s *Service) ConfirmCODPayment(order commerce.Order, idempotencyKey string) (CODPayment, error) {
+	orderID := strings.TrimSpace(order.ID)
+	if orderID == "" || order.TotalCents <= 0 || strings.TrimSpace(order.Currency) == "" {
+		return CODPayment{}, ErrInvalidOrder
+	}
+
+	switch order.Status {
+	case commerce.OrderStatusPendingPayment, commerce.OrderStatusPaymentFailed, commerce.OrderStatusCODConfirmed:
+	default:
+		return CODPayment{}, ErrOrderNotPayable
+	}
+
+	normalizedKey := strings.TrimSpace(idempotencyKey)
+	if normalizedKey == "" {
+		return CODPayment{}, ErrIdempotencyKey
+	}
+	requestID := orderID + "::" + normalizedKey
+
+	s.mu.Lock()
+	if paymentID, exists := s.codByRequestID[requestID]; exists {
+		payment := s.codPaymentsByID[paymentID]
+		s.mu.Unlock()
+		return payment, nil
+	}
+	if paymentID, exists := s.codByOrderID[orderID]; exists {
+		payment := s.codPaymentsByID[paymentID]
+		s.codByRequestID[requestID] = paymentID
+		s.mu.Unlock()
+		return payment, nil
+	}
+
+	now := s.now()
+	payment := CODPayment{
+		ID:          identifier.New("pay"),
+		OrderID:     orderID,
+		Method:      MethodCOD,
+		Status:      PaymentStatusPendingCollection,
+		Provider:    ProviderCOD,
+		ProviderRef: identifier.New("cod"),
+		AmountCents: order.TotalCents,
+		Currency:    order.Currency,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	s.codPaymentsByID[payment.ID] = payment
+	s.codByRequestID[requestID] = payment.ID
+	s.codByOrderID[orderID] = payment.ID
+	s.mu.Unlock()
+
+	if s.markOrderCOD != nil {
+		_ = s.markOrderCOD(orderID)
+	}
+
+	return payment, nil
 }
 
 func (s *Service) HandleStripeWebhook(payload []byte, signatureHeader string) (WebhookResult, error) {
