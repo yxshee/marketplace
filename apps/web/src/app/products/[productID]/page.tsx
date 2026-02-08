@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { addCartItemAction } from "@/app/actions/cart";
 import { getCatalogProductById } from "@/lib/api-client";
 import { formatUSD } from "@/lib/formatters";
 
@@ -49,6 +50,28 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
               </span>
             ))}
           </div>
+
+          <form action={addCartItemAction} className="mt-6 flex items-center gap-3 border-t border-border pt-5">
+            <input name="product_id" type="hidden" value={item.id} />
+            <label className="sr-only" htmlFor="qty">
+              Quantity
+            </label>
+            <input
+              className="w-20 rounded-sm border border-border px-2 py-2 text-sm"
+              defaultValue={1}
+              id="qty"
+              max={Math.max(1, item.stock_qty)}
+              min={1}
+              name="qty"
+              type="number"
+            />
+            <button
+              className="rounded-sm border border-ink bg-ink px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black"
+              type="submit"
+            >
+              Add to cart
+            </button>
+          </form>
         </article>
 
         <aside className="space-y-4 rounded-md border border-border bg-white p-5">
