@@ -1,7 +1,6 @@
 # Architecture Docs
 
-This directory will contain:
-- high-level architecture overview
-- ADRs
-- milestone acceptance criteria
-- risk and mitigation register
+- `architecture-plan.md` - requirements restatement, architecture choices, milestones, risks.
+- `rbac-matrix.md` - role and capability matrix for buyer/vendor/admin surfaces.
+
+Additional ADRs and deployment architecture docs are added in later milestones.
