@@ -119,6 +119,7 @@ func New(cfg config.Config) (http.Handler, error) {
 		maxBodyBytes = 1 << 20
 	}
 	r.Use(middleware.RequestSize(maxBodyBytes))
+	r.Use(corsHeaders(cfg.CORSAllowOrigins))
 	r.Use(securityHeaders)
 	if cfg.EnableRateLimit {
 		globalLimiter := newRequestRateLimiter(cfg.GlobalRateLimitRPS, cfg.GlobalRateLimitBurst, 2*time.Minute)
@@ -132,9 +133,11 @@ func New(cfg config.Config) (http.Handler, error) {
 	}
 
 	r.Get("/health", healthHandler)
+	r.Get("/healthz", healthHandler)
 
 	r.Route("/api/v1", func(v1 chi.Router) {
 		v1.Get("/health", healthHandler)
+		v1.Get("/healthz", healthHandler)
 		v1.Get("/catalog/categories", apiHandlers.handleCatalogCategories)
 		v1.Get("/catalog/products", apiHandlers.handleCatalogList)
 		v1.Get("/catalog/products/{productID}", apiHandlers.handleCatalogProductDetail)

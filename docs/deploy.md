@@ -33,7 +33,9 @@ Notes:
 - API Dockerfile: `services/api/Dockerfile` (multi-stage + distroless)
 - Health endpoints:
   - `GET /health`
+  - `GET /healthz`
   - `GET /api/v1/health`
+  - `GET /api/v1/healthz`
 
 ## Environment Variables
 
@@ -53,6 +55,7 @@ Notes:
 |---|---:|---|---|
 | `API_ENV` | yes | `production` | Enables production defaults (rate-limit enabled by default) |
 | `API_PORT` | no | `8080` | Port to listen on (defaults to `8080`) |
+| `API_CORS_ALLOW_ORIGINS` | no | `https://web.example.com,http://localhost:3000` | Allowed CORS origins (comma-separated) |
 | `API_JWT_SECRET` | yes | `...` | JWT signing secret (access+refresh) |
 | `API_JWT_ISSUER` | yes | `marketplace-api` | JWT issuer claim |
 | `API_ACCESS_TOKEN_TTL_SECONDS` | no | `900` | Access token TTL |
