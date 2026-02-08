@@ -15,6 +15,9 @@ import {
   vendorUpdateProductPricingAction,
 } from "@/app/actions/vendor";
 import {
+  getVendorAnalyticsCoupons,
+  getVendorAnalyticsOverview,
+  getVendorAnalyticsTopProducts,
   getVendorCoupons,
   getVendorProducts,
   getVendorRefundRequests,
@@ -99,14 +102,63 @@ export default async function VendorSurfacePage({ searchParams }: VendorSurfaceP
   let refundRequests = [] as Awaited<
     ReturnType<typeof getVendorRefundRequests>
   >["payload"]["items"];
+  let analyticsOverview = {
+    currency: "USD",
+    revenue_cents: 0,
+    order_count: 0,
+    paid_order_count: 0,
+    shipment_count: 0,
+    conversion_funnel: {
+      orders_total: 0,
+      orders_paid: 0,
+      shipments_total: 0,
+      shipments_shipped: 0,
+      shipments_delivered: 0,
+    },
+    refund_stats: {
+      requests_total: 0,
+      pending_total: 0,
+      approved_total: 0,
+      rejected_total: 0,
+      approval_rate_bps: 0,
+      order_refund_rate_bps: 0,
+    },
+  } as Awaited<ReturnType<typeof getVendorAnalyticsOverview>>["payload"];
+  let analyticsTopProducts = [] as Awaited<
+    ReturnType<typeof getVendorAnalyticsTopProducts>
+  >["payload"]["items"];
+  let analyticsCoupons = [] as Awaited<
+    ReturnType<typeof getVendorAnalyticsCoupons>
+  >["payload"]["items"];
   let managementLoadError = false;
 
   if (accessToken && vendor) {
     try {
-      products = (await getVendorProducts(accessToken)).payload.items;
-      coupons = (await getVendorCoupons(accessToken)).payload.items;
-      shipments = (await getVendorShipments(accessToken)).payload.items;
-      refundRequests = (await getVendorRefundRequests(accessToken)).payload.items;
+      const [
+        productResult,
+        couponResult,
+        shipmentResult,
+        refundResult,
+        overviewResult,
+        topProductsResult,
+        analyticsCouponsResult,
+      ] = await Promise.all([
+        getVendorProducts(accessToken),
+        getVendorCoupons(accessToken),
+        getVendorShipments(accessToken),
+        getVendorRefundRequests(accessToken),
+        getVendorAnalyticsOverview(accessToken),
+        getVendorAnalyticsTopProducts(accessToken),
+        getVendorAnalyticsCoupons(accessToken),
+      ]);
+
+      products = productResult.payload.items;
+      coupons = couponResult.payload.items;
+      shipments = shipmentResult.payload.items;
+      refundRequests = refundResult.payload.items;
+      analyticsOverview = overviewResult.payload;
+      analyticsTopProducts = topProductsResult.payload.items;
+      analyticsCoupons = analyticsCouponsResult.payload.items;
     } catch {
       managementLoadError = true;
     }
@@ -283,6 +335,102 @@ export default async function VendorSurfacePage({ searchParams }: VendorSurfaceP
             </SurfaceCard>
           ) : (
             <div className="space-y-4">
+              <SurfaceCard>
+                <h3 className="font-display text-lg font-semibold">Analytics</h3>
+                <p className="mt-1 text-sm text-muted">
+                  Revenue, fulfillment funnel, refund rates, top products, and coupon impact.
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-sm border border-border bg-surface px-3 py-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">Revenue</p>
+                    <p className="mt-1 font-display text-xl font-semibold">
+                      {formatUSD(analyticsOverview.revenue_cents)}
+                    </p>
+                  </div>
+                  <div className="rounded-sm border border-border bg-surface px-3 py-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">Orders</p>
+                    <p className="mt-1 font-display text-xl font-semibold">
+                      {analyticsOverview.order_count}
+                    </p>
+                    <p className="text-xs text-muted">
+                      Paid/confirmed {analyticsOverview.paid_order_count}
+                    </p>
+                  </div>
+                  <div className="rounded-sm border border-border bg-surface px-3 py-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">Shipments</p>
+                    <p className="mt-1 font-display text-xl font-semibold">
+                      {analyticsOverview.shipment_count}
+                    </p>
+                    <p className="text-xs text-muted">
+                      Delivered {analyticsOverview.conversion_funnel.shipments_delivered}
+                    </p>
+                  </div>
+                  <div className="rounded-sm border border-border bg-surface px-3 py-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">Refund rate</p>
+                    <p className="mt-1 font-display text-xl font-semibold">
+                      {(analyticsOverview.refund_stats.order_refund_rate_bps / 100).toFixed(2)}%
+                    </p>
+                    <p className="text-xs text-muted">
+                      Requests {analyticsOverview.refund_stats.requests_total}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-sm border border-border p-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">Top products</p>
+                    <div className="mt-2 space-y-2">
+                      {analyticsTopProducts.length === 0 ? (
+                        <p className="text-sm text-muted">No product sales data yet.</p>
+                      ) : null}
+                      {analyticsTopProducts.slice(0, 5).map((item) => (
+                        <div
+                          className="flex items-center justify-between gap-3 border-b border-border pb-2 last:border-b-0 last:pb-0"
+                          key={item.product_id}
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-ink">{item.title}</p>
+                            <p className="text-xs text-muted">
+                              Orders {item.order_count} · Units {item.units_sold}
+                            </p>
+                          </div>
+                          <p className="text-sm">{formatUSD(item.revenue_cents)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-sm border border-border p-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">
+                      Coupon performance
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {analyticsCoupons.length === 0 ? (
+                        <p className="text-sm text-muted">No coupons created yet.</p>
+                      ) : null}
+                      {analyticsCoupons.slice(0, 5).map((couponMetric) => (
+                        <div
+                          className="flex items-center justify-between gap-3 border-b border-border pb-2 last:border-b-0 last:pb-0"
+                          key={couponMetric.coupon_id}
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-ink">{couponMetric.code}</p>
+                            <p className="text-xs text-muted">
+                              Usage {couponMetric.usage_count} ·{" "}
+                              {couponMetric.active ? "Active" : "Inactive"}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted">
+                            Rev {formatUSD(couponMetric.attributed_revenue_cents)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </SurfaceCard>
+
               <div className="grid gap-4 lg:grid-cols-2">
                 <SurfaceCard>
                   <h3 className="font-display text-lg font-semibold">Products</h3>
