@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
+  createAdminPromotion,
+  deleteAdminPromotion,
   loginAuthUser,
   registerAuthUser,
+  updateAdminPromotion,
   updateAdminOrderStatus,
   updateAdminModerationProduct,
   updateAdminVendorVerification,
@@ -33,6 +36,34 @@ const persistAdminToken = async (token: string): Promise<void> => {
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
   });
+};
+
+const normalizeDateTimeField = (value: FormDataEntryValue | null): string | undefined => {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return undefined;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+  return parsed.toISOString();
+};
+
+const parseRuleJSONField = (value: FormDataEntryValue | null): Record<string, unknown> | null => {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 };
 
 export async function adminAuthRegisterAction(formData: FormData): Promise<never> {
@@ -139,6 +170,92 @@ export async function adminOrderStatusAction(formData: FormData): Promise<never>
   }
 
   redirect("/admin?notice=admin-order-updated");
+}
+
+export async function adminPromotionCreateAction(formData: FormData): Promise<never> {
+  const accessToken = await requireAdminToken();
+  const name = String(formData.get("name") ?? "").trim();
+  const ruleJSON = parseRuleJSONField(formData.get("rule_json"));
+  const startsAt = normalizeDateTimeField(formData.get("starts_at"));
+  const endsAt = normalizeDateTimeField(formData.get("ends_at"));
+  const stackable = String(formData.get("stackable") ?? "").trim() === "on";
+  const active = String(formData.get("active") ?? "").trim() === "on";
+
+  if (!name || !ruleJSON) {
+    redirect("/admin?error=admin-promotion-invalid");
+  }
+
+  try {
+    await createAdminPromotion(
+      {
+        name,
+        rule_json: ruleJSON,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        stackable,
+        active,
+      },
+      accessToken,
+    );
+    revalidatePath("/admin");
+  } catch {
+    redirect("/admin?error=admin-promotion-create-failed");
+  }
+
+  redirect("/admin?notice=admin-promotion-created");
+}
+
+export async function adminPromotionUpdateAction(formData: FormData): Promise<never> {
+  const accessToken = await requireAdminToken();
+  const promotionID = String(formData.get("promotion_id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const ruleJSON = parseRuleJSONField(formData.get("rule_json"));
+  const startsAt = normalizeDateTimeField(formData.get("starts_at"));
+  const endsAt = normalizeDateTimeField(formData.get("ends_at"));
+  const stackable = String(formData.get("stackable") ?? "").trim() === "on";
+  const active = String(formData.get("active") ?? "").trim() === "on";
+
+  if (!promotionID || !name || !ruleJSON) {
+    redirect("/admin?error=admin-promotion-invalid");
+  }
+
+  try {
+    await updateAdminPromotion(
+      promotionID,
+      {
+        name,
+        rule_json: ruleJSON,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        stackable,
+        active,
+      },
+      accessToken,
+    );
+    revalidatePath("/admin");
+  } catch {
+    redirect("/admin?error=admin-promotion-update-failed");
+  }
+
+  redirect("/admin?notice=admin-promotion-updated");
+}
+
+export async function adminPromotionDeleteAction(formData: FormData): Promise<never> {
+  const accessToken = await requireAdminToken();
+  const promotionID = String(formData.get("promotion_id") ?? "").trim();
+
+  if (!promotionID) {
+    redirect("/admin?error=admin-promotion-invalid");
+  }
+
+  try {
+    await deleteAdminPromotion(promotionID, accessToken);
+    revalidatePath("/admin");
+  } catch {
+    redirect("/admin?error=admin-promotion-delete-failed");
+  }
+
+  redirect("/admin?notice=admin-promotion-deleted");
 }
 
 export async function adminLogoutAction(): Promise<never> {

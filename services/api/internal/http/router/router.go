@@ -15,6 +15,7 @@ import (
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/coupons"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/invoices"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/payments"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/promotions"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/refunds"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
@@ -31,6 +32,7 @@ type api struct {
 	vendorService  *vendors.Service
 	catalogService *catalog.Service
 	coupons        *coupons.Service
+	promotions     *promotions.Service
 	commerce       *commerce.Service
 	invoices       *invoices.Service
 	payments       *payments.Service
@@ -73,6 +75,7 @@ func New(cfg config.Config) (http.Handler, error) {
 		vendorService:  vendors.NewService(),
 		catalogService: catalog.NewService(),
 		coupons:        coupons.NewService(),
+		promotions:     promotions.NewService(),
 		commerce:       commerceService,
 		invoices: invoices.NewService(invoices.Config{
 			PlatformName:         "Marketplace Gumroad Inspired",
@@ -206,6 +209,14 @@ func New(cfg config.Config) (http.Handler, error) {
 				adminRoutes.Get("/admin/orders", apiHandlers.handleAdminOrdersList)
 				adminRoutes.Get("/admin/orders/{orderID}", apiHandlers.handleAdminOrderDetail)
 				adminRoutes.Patch("/admin/orders/{orderID}/status", apiHandlers.handleAdminOrderStatusUpdate)
+			})
+
+			private.Group(func(adminRoutes chi.Router) {
+				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManagePromotions))
+				adminRoutes.Get("/admin/promotions", apiHandlers.handleAdminPromotionsList)
+				adminRoutes.Post("/admin/promotions", apiHandlers.handleAdminPromotionCreate)
+				adminRoutes.Patch("/admin/promotions/{promotionID}", apiHandlers.handleAdminPromotionUpdate)
+				adminRoutes.Delete("/admin/promotions/{promotionID}", apiHandlers.handleAdminPromotionDelete)
 			})
 
 			private.Group(func(adminRoutes chi.Router) {

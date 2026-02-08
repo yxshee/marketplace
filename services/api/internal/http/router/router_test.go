@@ -685,6 +685,109 @@ func TestAdminPaymentSettingsRBACAndEnforcement(t *testing.T) {
 	}
 }
 
+func TestAdminPromotionsCRUDAndRBAC(t *testing.T) {
+	r := mustRouter(t)
+
+	support := registerUser(t, r, "support@example.com")
+	finance := registerUser(t, r, "finance@example.com")
+	buyer := registerUser(t, r, "buyer-promotions@example.com")
+
+	supportList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/promotions", nil, support.AccessToken)
+	if supportList.Code != http.StatusForbidden {
+		t.Fatalf("expected support forbidden for promotions list, got status=%d body=%s", supportList.Code, supportList.Body.String())
+	}
+	buyerList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/promotions", nil, buyer.AccessToken)
+	if buyerList.Code != http.StatusForbidden {
+		t.Fatalf("expected buyer forbidden for promotions list, got status=%d body=%s", buyerList.Code, buyerList.Body.String())
+	}
+
+	invalidCreate := requestJSON(t, r, http.MethodPost, "/api/v1/admin/promotions", map[string]interface{}{
+		"name":      "Broken Promotion",
+		"rule_json": "not-an-object",
+	}, finance.AccessToken)
+	if invalidCreate.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid promotion payload 400, got status=%d body=%s", invalidCreate.Code, invalidCreate.Body.String())
+	}
+
+	created := requestJSON(t, r, http.MethodPost, "/api/v1/admin/promotions", map[string]interface{}{
+		"name":      "Platform Spring Sale",
+		"rule_json": map[string]interface{}{"type": "percentage", "value": 12},
+		"active":    true,
+		"stackable": false,
+	}, finance.AccessToken)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("expected finance to create promotion, got status=%d body=%s", created.Code, created.Body.String())
+	}
+
+	var createdPayload struct {
+		ID       string                 `json:"id"`
+		Name     string                 `json:"name"`
+		RuleJSON map[string]interface{} `json:"rule_json"`
+		Active   bool                   `json:"active"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &createdPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if createdPayload.ID == "" {
+		t.Fatalf("expected created promotion id, got %#v", createdPayload)
+	}
+
+	list := requestJSON(t, r, http.MethodGet, "/api/v1/admin/promotions", nil, finance.AccessToken)
+	if list.Code != http.StatusOK {
+		t.Fatalf("expected finance list promotions 200, got status=%d body=%s", list.Code, list.Body.String())
+	}
+	var listPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(list.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if listPayload.Total != 1 || len(listPayload.Items) != 1 {
+		t.Fatalf("expected one promotion listed, got total=%d len=%d", listPayload.Total, len(listPayload.Items))
+	}
+	if listPayload.Items[0].ID != createdPayload.ID {
+		t.Fatalf("expected promotion id %s in list, got %s", createdPayload.ID, listPayload.Items[0].ID)
+	}
+
+	invalidUpdate := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/promotions/"+createdPayload.ID, map[string]interface{}{}, finance.AccessToken)
+	if invalidUpdate.Code != http.StatusBadRequest {
+		t.Fatalf("expected empty update payload 400, got status=%d body=%s", invalidUpdate.Code, invalidUpdate.Body.String())
+	}
+
+	updated := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/promotions/"+createdPayload.ID, map[string]interface{}{
+		"name":      "Platform Spring Sale Updated",
+		"rule_json": map[string]interface{}{"type": "fixed", "value": 500},
+		"active":    false,
+		"stackable": true,
+	}, finance.AccessToken)
+	if updated.Code != http.StatusOK {
+		t.Fatalf("expected update promotion 200, got status=%d body=%s", updated.Code, updated.Body.String())
+	}
+
+	deleted := requestJSON(t, r, http.MethodDelete, "/api/v1/admin/promotions/"+createdPayload.ID, nil, finance.AccessToken)
+	if deleted.Code != http.StatusNoContent {
+		t.Fatalf("expected delete promotion 204, got status=%d body=%s", deleted.Code, deleted.Body.String())
+	}
+
+	afterDelete := requestJSON(t, r, http.MethodGet, "/api/v1/admin/promotions", nil, finance.AccessToken)
+	if afterDelete.Code != http.StatusOK {
+		t.Fatalf("expected list promotions after delete 200, got status=%d body=%s", afterDelete.Code, afterDelete.Body.String())
+	}
+	var afterDeletePayload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(afterDelete.Body.Bytes(), &afterDeletePayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if afterDeletePayload.Total != 0 {
+		t.Fatalf("expected zero promotions after delete, got %d", afterDeletePayload.Total)
+	}
+}
+
 func TestBuyerPaymentSettingsExposeCurrentAvailability(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"
