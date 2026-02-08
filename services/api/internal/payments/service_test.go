@@ -105,6 +105,57 @@ func TestStripeWebhookRejectsInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestConfirmCODPaymentIsIdempotentAndMarksOrder(t *testing.T) {
+	var codConfirmed []string
+	svc := NewService(Config{
+		MarkOrderCODConfirmed: func(orderID string) bool {
+			codConfirmed = append(codConfirmed, orderID)
+			return true
+		},
+	})
+
+	order := commerce.Order{
+		ID:         "ord_test_cod_1",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 5600,
+		Currency:   "USD",
+	}
+
+	first, err := svc.ConfirmCODPayment(order, "idem-cod-1")
+	if err != nil {
+		t.Fatalf("ConfirmCODPayment() first error = %v", err)
+	}
+	if first.Method != MethodCOD || first.Status != PaymentStatusPendingCollection {
+		t.Fatalf("unexpected cod payment payload: method=%s status=%s", first.Method, first.Status)
+	}
+
+	second, err := svc.ConfirmCODPayment(order, "idem-cod-1")
+	if err != nil {
+		t.Fatalf("ConfirmCODPayment() second error = %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("expected idempotent cod payment id %s, got %s", first.ID, second.ID)
+	}
+	if len(codConfirmed) != 1 || codConfirmed[0] != order.ID {
+		t.Fatalf("expected cod confirmation callback once for %s, got %#v", order.ID, codConfirmed)
+	}
+}
+
+func TestConfirmCODPaymentRejectsPaidOrders(t *testing.T) {
+	svc := NewService(Config{})
+	order := commerce.Order{
+		ID:         "ord_test_cod_paid",
+		Status:     commerce.OrderStatusPaid,
+		TotalCents: 1200,
+		Currency:   "USD",
+	}
+
+	_, err := svc.ConfirmCODPayment(order, "idem-cod-2")
+	if !errors.Is(err, ErrOrderNotPayable) {
+		t.Fatalf("expected ErrOrderNotPayable, got %v", err)
+	}
+}
+
 func signedStripeEventPayload(t *testing.T, secret, eventID, eventType, paymentIntentID string) ([]byte, string) {
 	t.Helper()
 

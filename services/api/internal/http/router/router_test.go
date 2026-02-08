@@ -538,6 +538,112 @@ func TestStripeIntentAndWebhookFlow(t *testing.T) {
 	}
 }
 
+func TestCODConfirmFlow(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	r := mustRouterWithConfig(t, cfg)
+
+	catalogRes := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products", nil, "")
+	if catalogRes.Code != http.StatusOK {
+		t.Fatalf("catalog status=%d body=%s", catalogRes.Code, catalogRes.Body.String())
+	}
+
+	var catalogPayload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(catalogRes.Body.Bytes(), &catalogPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(catalogPayload.Items) == 0 {
+		t.Fatal("expected at least one seeded product")
+	}
+
+	guestHeaders := map[string]string{guestTokenHeader: "gst_test_cod_flow"}
+	addRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+		"product_id": catalogPayload.Items[0].ID,
+		"qty":        1,
+	}, "", guestHeaders)
+	if addRes.Code != http.StatusOK {
+		t.Fatalf("add cart item status=%d body=%s", addRes.Code, addRes.Body.String())
+	}
+
+	orderRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-cod-order-1",
+	}, "", guestHeaders)
+	if orderRes.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", orderRes.Code, orderRes.Body.String())
+	}
+
+	var orderPayload struct {
+		Order struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderRes.Body.Bytes(), &orderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if orderPayload.Order.Status != "pending_payment" {
+		t.Fatalf("expected pending_payment status before cod confirmation, got %s", orderPayload.Order.Status)
+	}
+
+	codRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/cod/confirm", map[string]interface{}{
+		"order_id":        orderPayload.Order.ID,
+		"idempotency_key": "idem-cod-confirm-1",
+	}, "", guestHeaders)
+	if codRes.Code != http.StatusCreated {
+		t.Fatalf("cod confirm status=%d body=%s", codRes.Code, codRes.Body.String())
+	}
+
+	var codPayload struct {
+		ID     string `json:"id"`
+		Method string `json:"method"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(codRes.Body.Bytes(), &codPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if codPayload.Method != "cod" || codPayload.Status != "pending_collection" {
+		t.Fatalf("expected cod pending_collection payment, got method=%s status=%s", codPayload.Method, codPayload.Status)
+	}
+
+	codRetryRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/cod/confirm", map[string]interface{}{
+		"order_id":        orderPayload.Order.ID,
+		"idempotency_key": "idem-cod-confirm-1",
+	}, "", guestHeaders)
+	if codRetryRes.Code != http.StatusCreated {
+		t.Fatalf("cod retry status=%d body=%s", codRetryRes.Code, codRetryRes.Body.String())
+	}
+
+	var codRetryPayload struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(codRetryRes.Body.Bytes(), &codRetryPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if codRetryPayload.ID != codPayload.ID {
+		t.Fatalf("expected idempotent cod payment id %s, got %s", codPayload.ID, codRetryPayload.ID)
+	}
+
+	orderAfterCOD := requestJSONWithHeaders(t, r, http.MethodGet, "/api/v1/orders/"+orderPayload.Order.ID, nil, "", guestHeaders)
+	if orderAfterCOD.Code != http.StatusOK {
+		t.Fatalf("get order status=%d body=%s", orderAfterCOD.Code, orderAfterCOD.Body.String())
+	}
+	var orderAfterPayload struct {
+		Order struct {
+			Status string `json:"status"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderAfterCOD.Body.Bytes(), &orderAfterPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if orderAfterPayload.Order.Status != "cod_confirmed" {
+		t.Fatalf("expected order status cod_confirmed after cod confirmation, got %s", orderAfterPayload.Order.Status)
+	}
+}
+
 func TestStripeWebhookRejectsInvalidSignature(t *testing.T) {
 	cfg := testConfig()
 	cfg.StripeWebhookSecret = "whsec_router_test"

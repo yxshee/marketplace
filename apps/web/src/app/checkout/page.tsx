@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { placeOrderAction, placeOrderWithStripeAction } from "@/app/actions/cart";
+import { placeOrderWithCODAction, placeOrderWithStripeAction } from "@/app/actions/cart";
 import { getCheckoutQuote } from "@/lib/api-client";
 import { formatUSD } from "@/lib/formatters";
 
@@ -118,7 +118,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
             Pay online with Stripe
           </button>
         </form>
-        <form action={placeOrderAction} className="mt-2">
+        <form action={placeOrderWithCODAction} className="mt-2">
           <input name="idempotency_key" type="hidden" value={`${idempotencyKey}_cod`} />
           <button
             className="w-full rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-white"
@@ -128,7 +128,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
           </button>
         </form>
         <p className="mt-2 text-xs text-muted">
-          Stripe flow creates a payment intent and awaits secure confirmation; COD keeps payment pending.
+          Stripe flow creates a payment intent and awaits secure confirmation; COD confirms order for payment on delivery.
         </p>
 
         <div className="mt-3 text-right">
