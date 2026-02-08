@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
+	"github.com/yxshee/marketplace-platform/services/api/internal/commerce"
 )
 
 func TestCreateAndDecideRefundRequest(t *testing.T) {

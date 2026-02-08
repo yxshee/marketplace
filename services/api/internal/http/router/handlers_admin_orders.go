@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
+	"github.com/yxshee/marketplace-platform/services/api/internal/commerce"
 )
 
 type adminOrderStatusUpdateRequest struct {

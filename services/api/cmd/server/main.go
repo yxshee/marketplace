@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/http/router"
+	"github.com/yxshee/marketplace-platform/services/api/internal/config"
+	"github.com/yxshee/marketplace-platform/services/api/internal/http/router"
 )
 
 func main() {

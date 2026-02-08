@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-pdf/fpdf"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
+	"github.com/yxshee/marketplace-platform/services/api/internal/commerce"
 )
 
 var (
@@ -44,7 +44,7 @@ type Service struct {
 
 func NewService(cfg Config) *Service {
 	if strings.TrimSpace(cfg.PlatformName) == "" {
-		cfg.PlatformName = "Marketplace Gumroad Inspired"
+		cfg.PlatformName = "Marketplace Platform"
 	}
 	if strings.TrimSpace(cfg.PlatformLegalEntity) == "" {
 		cfg.PlatformLegalEntity = cfg.PlatformName

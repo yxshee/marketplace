@@ -8,7 +8,7 @@ import (
 
 	"github.com/stripe/stripe-go/v83"
 	"github.com/stripe/stripe-go/v83/paymentintent"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/platform/identifier"
+	"github.com/yxshee/marketplace-platform/services/api/internal/platform/identifier"
 )
 
 var ErrStripeSecretKeyRequired = errors.New("stripe secret key is required")

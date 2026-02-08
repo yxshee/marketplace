@@ -1,8 +1,8 @@
 package router
 
 import (
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
+	"github.com/yxshee/marketplace-platform/services/api/internal/catalog"
+	"github.com/yxshee/marketplace-platform/services/api/internal/vendors"
 )
 
 func (a *api) seedDevelopmentCatalog() {

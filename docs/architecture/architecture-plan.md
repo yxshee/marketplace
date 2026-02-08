@@ -1,4 +1,4 @@
-# Marketplace Gumroad Inspired - Architecture Plan
+# Marketplace Platform - Architecture Plan
 
 ## 1. Product Scope Restatement
 
@@ -93,4 +93,3 @@
 - Product variant-level inventory modeling.
 - Multi-currency checkout and invoicing.
 - Full global shipping-rate engine.
-

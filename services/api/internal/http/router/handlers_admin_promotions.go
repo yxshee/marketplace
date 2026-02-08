@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/promotions"
+	"github.com/yxshee/marketplace-platform/services/api/internal/promotions"
 )
 
 type adminPromotionListResponse struct {

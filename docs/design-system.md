@@ -1,4 +1,4 @@
-# Design System (Gumroad-inspired, Original)
+# Design System (Original)
 
 ## Principles
 - Minimal UI with high readability and strong hierarchy

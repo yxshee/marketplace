@@ -1,4 +1,4 @@
-module github.com/yxshee/marketplace-gumroad-inspired/services/api
+module github.com/yxshee/marketplace-platform/services/api
 
 go 1.19
 

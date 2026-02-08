@@ -3,8 +3,8 @@ package router
 import (
 	"net/http"
 
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auditlog"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auditlog"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auth"
 )
 
 func actorTypeForRole(role auth.Role) string {

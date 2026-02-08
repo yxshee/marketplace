@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/coupons"
+	"github.com/yxshee/marketplace-platform/services/api/internal/coupons"
 )
 
 type vendorCreateCouponRequest struct {

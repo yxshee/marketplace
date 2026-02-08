@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/platform/identifier"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auth"
+	"github.com/yxshee/marketplace-platform/services/api/internal/catalog"
+	"github.com/yxshee/marketplace-platform/services/api/internal/commerce"
+	"github.com/yxshee/marketplace-platform/services/api/internal/platform/identifier"
+	"github.com/yxshee/marketplace-platform/services/api/internal/vendors"
 )
 
 const guestTokenHeader = "X-Guest-Token"

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/payments"
+	"github.com/yxshee/marketplace-platform/services/api/internal/payments"
 )
 
 const stripeSignatureHeader = "Stripe-Signature"

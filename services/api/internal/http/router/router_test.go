@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/stripe/stripe-go/v83/webhook"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
+	"github.com/yxshee/marketplace-platform/services/api/internal/config"
 )
 
 func testConfig() config.Config {

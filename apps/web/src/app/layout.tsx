@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Marketplace",
-  description: "Gumroad-inspired multi-vendor marketplace",
+  description: "Multi-vendor marketplace platform",
 };
 
 const navLinks = [
@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
             <Link className="inline-flex items-center gap-2 font-display text-base font-semibold tracking-tight" href="/">
               <span aria-hidden className="brand-dot" />
-              <span>marketplace-gumroad-inspired</span>
+              <span>marketplace-platform</span>
             </Link>
             <nav aria-label="Primary" className="flex items-center gap-2 text-sm text-muted sm:gap-3">
               {navLinks.map((item) => (

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/platform/identifier"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auth"
+	"github.com/yxshee/marketplace-platform/services/api/internal/platform/identifier"
 )
 
 type authRequest struct {

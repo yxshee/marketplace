@@ -8,17 +8,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auditlog"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/coupons"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/invoices"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/payments"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/promotions"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/refunds"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auditlog"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auth"
+	"github.com/yxshee/marketplace-platform/services/api/internal/catalog"
+	"github.com/yxshee/marketplace-platform/services/api/internal/commerce"
+	"github.com/yxshee/marketplace-platform/services/api/internal/config"
+	"github.com/yxshee/marketplace-platform/services/api/internal/coupons"
+	"github.com/yxshee/marketplace-platform/services/api/internal/invoices"
+	"github.com/yxshee/marketplace-platform/services/api/internal/payments"
+	"github.com/yxshee/marketplace-platform/services/api/internal/promotions"
+	"github.com/yxshee/marketplace-platform/services/api/internal/refunds"
+	"github.com/yxshee/marketplace-platform/services/api/internal/vendors"
 )
 
 type healthResponse struct {
@@ -81,8 +81,8 @@ func New(cfg config.Config) (http.Handler, error) {
 		auditLogs:      auditlog.NewService(),
 		commerce:       commerceService,
 		invoices: invoices.NewService(invoices.Config{
-			PlatformName:         "Marketplace Gumroad Inspired",
-			PlatformLegalEntity:  "Marketplace Gumroad Inspired LLC",
+			PlatformName:         "Marketplace Platform",
+			PlatformLegalEntity:  "Marketplace Platform LLC",
 			PlatformSupportEmail: "support@marketplace.local",
 			PlatformAddress:      "Global operations",
 		}),

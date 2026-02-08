@@ -1,21 +1,21 @@
 <div align="center">
   
-  # 🛒 Marketplace: Gumroad-Inspired
+  # 🛒 Marketplace Platform
   
   ### *Production-grade multi-vendor ecommerce marketplace*
   
-  <p>✨ Buyer, Vendor, and Admin surfaces with a clean, whitespace-first, Gumroad-inspired UI philosophy ✨</p>
+  <p>✨ Buyer, Vendor, and Admin surfaces with a clean, whitespace-first UI philosophy ✨</p>
   
   <br/>
   
   <p>
-    <a href="https://github.com/yxshee/marketplace-gumroad-inspired/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/yxshee/marketplace-gumroad-inspired/ci.yml?branch=main&label=CI&style=for-the-badge"/></a>
-    <a href="https://github.com/yxshee/marketplace-gumroad-inspired/releases/tag/v1.0.0"><img alt="Release" src="https://img.shields.io/github/v/tag/yxshee/marketplace-gumroad-inspired?label=release&style=for-the-badge&color=success" /></a>
+    <a href="https://github.com/yxshee/marketplace-platform/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/yxshee/marketplace-platform/ci.yml?branch=main&label=CI&style=for-the-badge"/></a>
+    <a href="https://github.com/yxshee/marketplace-platform/releases/tag/v1.0.0"><img alt="Release" src="https://img.shields.io/github/v/tag/yxshee/marketplace-platform?label=release&style=for-the-badge&color=success" /></a>
     <img alt="Go" src="https://img.shields.io/badge/go-1.24-00ADD8?style=for-the-badge&logo=go" />
     <img alt="Next.js" src="https://img.shields.io/badge/next.js-15-black?style=for-the-badge&logo=next.js" />
     <img alt="TypeScript" src="https://img.shields.io/badge/typescript-strict-3178C6?style=for-the-badge&logo=typescript" />
     <a href="./LICENSE">
-      <img alt="License" src="https://img.shields.io/github/license/yxshee/marketplace-gumroad-inspired?style=for-the-badge" />
+      <img alt="License" src="https://img.shields.io/github/license/yxshee/marketplace-platform?style=for-the-badge" />
     </a>
   </p>
   
@@ -52,7 +52,7 @@
 <td width="33%">
 
 ### 🎨 Design First
-Minimal UI, original components, consistent spacing & typography inspired by Gumroad's clean aesthetic.
+Minimal UI, original components, and consistent spacing & typography for a clean aesthetic.
 
 </td>
 <td width="33%">
@@ -291,7 +291,7 @@ flowchart LR
 ## 📁 Repository Layout
 
 ```text
-📦 marketplace-gumroad-inspired
+📦 marketplace-platform
 ┣ 📂 apps
 ┃ ┗ 📂 web                    # 🌐 Next.js frontend (buyer/vendor/admin)
 ┃   ┣ 📂 src
@@ -813,9 +813,7 @@ copies or substantial portions of the Software.
 
 <div align="center">
 
-**Built with inspiration from:**
-
-🎨 [Gumroad](https://gumroad.com) - For the clean, minimal UI philosophy
+**Built with inspiration from modern marketplace UX patterns**
 
 🙏 **Special thanks to all contributors and the open-source community!**
 
@@ -827,12 +825,12 @@ copies or substantial portions of the Software.
 
 ### 💬 Questions or Issues?
 
-[![GitHub Issues](https://img.shields.io/github/issues/yxshee/marketplace-gumroad-inspired?style=for-the-badge)](https://github.com/yxshee/marketplace-gumroad-inspired/issues)
-[![GitHub Discussions](https://img.shields.io/github/discussions/yxshee/marketplace-gumroad-inspired?style=for-the-badge)](https://github.com/yxshee/marketplace-gumroad-inspired/discussions)
+[![GitHub Issues](https://img.shields.io/github/issues/yxshee/marketplace-platform?style=for-the-badge)](https://github.com/yxshee/marketplace-platform/issues)
+[![GitHub Discussions](https://img.shields.io/github/discussions/yxshee/marketplace-platform?style=for-the-badge)](https://github.com/yxshee/marketplace-platform/discussions)
 
-**[🐛 Report Bug](https://github.com/yxshee/marketplace-gumroad-inspired/issues/new?template=bug_report.md) •
-[✨ Request Feature](https://github.com/yxshee/marketplace-gumroad-inspired/issues/new?template=feature_request.md) •
-[💬 Start Discussion](https://github.com/yxshee/marketplace-gumroad-inspired/discussions/new)**
+**[🐛 Report Bug](https://github.com/yxshee/marketplace-platform/issues/new?template=bug_report.md) •
+[✨ Request Feature](https://github.com/yxshee/marketplace-platform/issues/new?template=feature_request.md) •
+[💬 Start Discussion](https://github.com/yxshee/marketplace-platform/discussions/new)**
 
 ---
 
@@ -840,7 +838,7 @@ copies or substantial portions of the Software.
 
 If you find this project useful, please consider giving it a star. It helps others discover the project!
 
-[![GitHub stars](https://img.shields.io/github/stars/yxshee/marketplace-gumroad-inspired?style=social)](https://github.com/yxshee/marketplace-gumroad-inspired)
+[![GitHub stars](https://img.shields.io/github/stars/yxshee/marketplace-platform?style=social)](https://github.com/yxshee/marketplace-platform)
 
 ---
 

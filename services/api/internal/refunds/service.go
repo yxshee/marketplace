@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/platform/identifier"
+	"github.com/yxshee/marketplace-platform/services/api/internal/commerce"
+	"github.com/yxshee/marketplace-platform/services/api/internal/platform/identifier"
 )
 
 const (

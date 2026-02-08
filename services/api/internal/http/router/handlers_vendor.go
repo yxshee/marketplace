@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auth"
+	"github.com/yxshee/marketplace-platform/services/api/internal/vendors"
 )
 
 type vendorRegisterRequest struct {

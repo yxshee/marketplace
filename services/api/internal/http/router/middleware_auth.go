@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
+	"github.com/yxshee/marketplace-platform/services/api/internal/auth"
 )
 
 func (a *api) authenticate(next http.Handler) http.Handler {
