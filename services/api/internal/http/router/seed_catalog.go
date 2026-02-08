@@ -2,7 +2,7 @@ package router
 
 import (
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendor"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
 
 func (a *api) seedDevelopmentCatalog() {
@@ -19,12 +19,12 @@ func (a *api) seedDevelopmentCatalog() {
 
 	vendorA, err := a.vendorService.Register(ownerA, "north-studio", "North Studio")
 	if err == nil {
-		vendorA, _ = a.vendorService.SetVerificationState(vendorA.ID, vendor.VerificationVerified)
+		vendorA, _ = a.vendorService.SetVerificationState(vendorA.ID, vendors.VerificationVerified)
 		_ = vendorA
 	}
 	vendorB, err := a.vendorService.Register(ownerB, "line-press", "Line Press")
 	if err == nil {
-		vendorB, _ = a.vendorService.SetVerificationState(vendorB.ID, vendor.VerificationVerified)
+		vendorB, _ = a.vendorService.SetVerificationState(vendorB.ID, vendors.VerificationVerified)
 		_ = vendorB
 	}
 
