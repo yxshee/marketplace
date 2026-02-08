@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.17.0
+  version: 0.18.0
 servers:
   - url: /api/v1
 paths:
@@ -883,6 +883,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminAuditLogListResponse"
 
+  /admin/dashboard/overview:
+    get:
+      summary: Fetch admin platform dashboard overview metrics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Platform dashboard overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDashboardOverviewResponse"
+
+  /admin/analytics/revenue:
+    get:
+      summary: Fetch admin platform revenue analytics time series
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+      responses:
+        "200":
+          description: Revenue analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAnalyticsRevenueResponse"
+
+  /admin/analytics/vendors:
+    get:
+      summary: Fetch per-vendor analytics for admin
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor performance analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAnalyticsVendorsResponse"
+
   /admin/settings/payments:
     get:
       summary: Fetch platform payment settings
@@ -1103,6 +1149,222 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuditLogEntry"
+        total:
+          type: integer
+      required: [items, total]
+
+    AdminDashboardOrderVolumes:
+      type: object
+      properties:
+        total:
+          type: integer
+        pending_payment:
+          type: integer
+        cod_confirmed:
+          type: integer
+        paid:
+          type: integer
+        payment_failed:
+          type: integer
+      required: [total, pending_payment, cod_confirmed, paid, payment_failed]
+
+    AdminDashboardVendorMetrics:
+      type: object
+      properties:
+        total_vendors:
+          type: integer
+        pending_verification:
+          type: integer
+        verified:
+          type: integer
+        rejected:
+          type: integer
+        suspended:
+          type: integer
+        active_with_sales:
+          type: integer
+        vendors_with_refund_risk:
+          type: integer
+      required:
+        [
+          total_vendors,
+          pending_verification,
+          verified,
+          rejected,
+          suspended,
+          active_with_sales,
+          vendors_with_refund_risk,
+        ]
+
+    AdminDashboardModerationQueueMetrics:
+      type: object
+      properties:
+        pending_products:
+          type: integer
+      required: [pending_products]
+
+    AdminDashboardDisputeMetrics:
+      type: object
+      properties:
+        refund_requests_total:
+          type: integer
+        pending_total:
+          type: integer
+        approved_total:
+          type: integer
+        rejected_total:
+          type: integer
+      required: [refund_requests_total, pending_total, approved_total, rejected_total]
+
+    AdminDashboardOverviewResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        platform_revenue_cents:
+          type: integer
+        commission_earned_cents:
+          type: integer
+        order_volumes:
+          $ref: "#/components/schemas/AdminDashboardOrderVolumes"
+        vendor_metrics:
+          $ref: "#/components/schemas/AdminDashboardVendorMetrics"
+        moderation_queue:
+          $ref: "#/components/schemas/AdminDashboardModerationQueueMetrics"
+        disputes:
+          $ref: "#/components/schemas/AdminDashboardDisputeMetrics"
+        generated_at:
+          type: string
+          format: date-time
+      required:
+        [
+          currency,
+          platform_revenue_cents,
+          commission_earned_cents,
+          order_volumes,
+          vendor_metrics,
+          moderation_queue,
+          disputes,
+          generated_at,
+        ]
+
+    AdminAnalyticsRevenueSummary:
+      type: object
+      properties:
+        settled_orders_total:
+          type: integer
+        gross_revenue_cents:
+          type: integer
+        commission_earned_cents:
+          type: integer
+        average_order_value_cents:
+          type: integer
+      required:
+        [settled_orders_total, gross_revenue_cents, commission_earned_cents, average_order_value_cents]
+
+    AdminAnalyticsRevenuePoint:
+      type: object
+      properties:
+        date:
+          type: string
+        order_count:
+          type: integer
+        gross_revenue_cents:
+          type: integer
+        commission_earned_cents:
+          type: integer
+      required: [date, order_count, gross_revenue_cents, commission_earned_cents]
+
+    AdminAnalyticsRevenueResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        window_days:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/AdminAnalyticsRevenueSummary"
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAnalyticsRevenuePoint"
+      required: [currency, window_days, summary, points]
+
+    AdminVendorAnalyticsItem:
+      type: object
+      properties:
+        vendor_id:
+          type: string
+        slug:
+          type: string
+        display_name:
+          type: string
+        verification_state:
+          type: string
+          enum: [pending, verified, rejected, suspended]
+        commission_bps:
+          type: integer
+        order_count:
+          type: integer
+        settled_order_count:
+          type: integer
+        gross_revenue_cents:
+          type: integer
+        commission_earned_cents:
+          type: integer
+        shipment_count:
+          type: integer
+        pending_shipment_count:
+          type: integer
+        shipped_shipment_count:
+          type: integer
+        delivered_shipment_count:
+          type: integer
+        cancelled_shipment_count:
+          type: integer
+        refund_requests_total:
+          type: integer
+        refund_pending_total:
+          type: integer
+        refund_approved_total:
+          type: integer
+        refund_rejected_total:
+          type: integer
+        refund_approval_rate_bps:
+          type: integer
+        settled_order_refund_rate_bps:
+          type: integer
+      required:
+        [
+          vendor_id,
+          slug,
+          display_name,
+          verification_state,
+          commission_bps,
+          order_count,
+          settled_order_count,
+          gross_revenue_cents,
+          commission_earned_cents,
+          shipment_count,
+          pending_shipment_count,
+          shipped_shipment_count,
+          delivered_shipment_count,
+          cancelled_shipment_count,
+          refund_requests_total,
+          refund_pending_total,
+          refund_approved_total,
+          refund_rejected_total,
+          refund_approval_rate_bps,
+          settled_order_refund_rate_bps,
+        ]
+
+    AdminAnalyticsVendorsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminVendorAnalyticsItem"
         total:
           type: integer
       required: [items, total]

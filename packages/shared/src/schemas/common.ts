@@ -124,6 +124,10 @@ export const adminAuditLogQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 
+export const adminRevenueAnalyticsQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(365).optional(),
+});
+
 export const vendorProductCreateSchema = z.object({
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().min(2).max(4000),

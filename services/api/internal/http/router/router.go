@@ -228,6 +228,13 @@ func New(cfg config.Config) (http.Handler, error) {
 			})
 
 			private.Group(func(adminRoutes chi.Router) {
+				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionViewAdminAnalytics))
+				adminRoutes.Get("/admin/dashboard/overview", apiHandlers.handleAdminDashboardOverview)
+				adminRoutes.Get("/admin/analytics/revenue", apiHandlers.handleAdminAnalyticsRevenue)
+				adminRoutes.Get("/admin/analytics/vendors", apiHandlers.handleAdminAnalyticsVendors)
+			})
+
+			private.Group(func(adminRoutes chi.Router) {
 				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManagePaymentSettings))
 				adminRoutes.Get("/admin/settings/payments", apiHandlers.handleAdminPaymentSettingsGet)
 				adminRoutes.Patch("/admin/settings/payments", apiHandlers.handleAdminPaymentSettingsPatch)

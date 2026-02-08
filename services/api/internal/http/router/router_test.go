@@ -1746,6 +1746,187 @@ func TestVendorAnalyticsOverviewTopProductsAndCoupons(t *testing.T) {
 	}
 }
 
+func TestAdminAnalyticsOverviewRevenueAndVendors(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	cfg.DefaultCommission = 1000
+	r := mustRouterWithConfig(t, cfg)
+
+	finance := registerUser(t, r, "finance@example.com")
+	support := registerUser(t, r, "support@example.com")
+	buyer := registerUser(t, r, "buyer-admin-analytics@example.com")
+
+	paidGuestToken := "gst_admin_analytics_paid"
+	paidOrderID := createGuestOrderFromSeededCatalog(t, r, paidGuestToken, "idem-admin-analytics-paid-order")
+	paidHeaders := map[string]string{guestTokenHeader: paidGuestToken}
+
+	codRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/cod/confirm", map[string]interface{}{
+		"order_id":        paidOrderID,
+		"idempotency_key": "idem-admin-analytics-cod-1",
+	}, "", paidHeaders)
+	if codRes.Code != http.StatusCreated {
+		t.Fatalf("cod confirm status=%d body=%s", codRes.Code, codRes.Body.String())
+	}
+
+	paidOrderRes := requestJSONWithHeaders(t, r, http.MethodGet, "/api/v1/orders/"+paidOrderID, nil, "", paidHeaders)
+	if paidOrderRes.Code != http.StatusOK {
+		t.Fatalf("get paid order status=%d body=%s", paidOrderRes.Code, paidOrderRes.Body.String())
+	}
+
+	var paidOrderPayload struct {
+		Order struct {
+			Shipments []struct {
+				ID string `json:"id"`
+			} `json:"shipments"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(paidOrderRes.Body.Bytes(), &paidOrderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(paidOrderPayload.Order.Shipments) == 0 {
+		t.Fatal("expected at least one shipment for paid order")
+	}
+
+	refundCreateRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/orders/"+paidOrderID+"/refund-requests", map[string]interface{}{
+		"shipment_id": paidOrderPayload.Order.Shipments[0].ID,
+		"reason":      "Admin analytics pending dispute fixture",
+	}, "", paidHeaders)
+	if refundCreateRes.Code != http.StatusCreated {
+		t.Fatalf("create refund request status=%d body=%s", refundCreateRes.Code, refundCreateRes.Body.String())
+	}
+
+	_ = createGuestOrderFromSeededCatalog(t, r, "gst_admin_analytics_pending", "idem-admin-analytics-pending-order")
+
+	overviewRes := requestJSON(t, r, http.MethodGet, "/api/v1/admin/dashboard/overview", nil, finance.AccessToken)
+	if overviewRes.Code != http.StatusOK {
+		t.Fatalf("admin overview status=%d body=%s", overviewRes.Code, overviewRes.Body.String())
+	}
+	var overviewPayload struct {
+		PlatformRevenueCents  int64 `json:"platform_revenue_cents"`
+		CommissionEarnedCents int64 `json:"commission_earned_cents"`
+		OrderVolumes          struct {
+			Total          int `json:"total"`
+			PendingPayment int `json:"pending_payment"`
+			CODConfirmed   int `json:"cod_confirmed"`
+		} `json:"order_volumes"`
+		VendorMetrics struct {
+			TotalVendors int `json:"total_vendors"`
+		} `json:"vendor_metrics"`
+		ModerationQueue struct {
+			PendingProducts int `json:"pending_products"`
+		} `json:"moderation_queue"`
+		Disputes struct {
+			RefundRequestsTotal int `json:"refund_requests_total"`
+			PendingTotal        int `json:"pending_total"`
+		} `json:"disputes"`
+	}
+	if err := json.Unmarshal(overviewRes.Body.Bytes(), &overviewPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if overviewPayload.PlatformRevenueCents <= 0 {
+		t.Fatalf("expected positive platform revenue, got %d", overviewPayload.PlatformRevenueCents)
+	}
+	if overviewPayload.CommissionEarnedCents <= 0 {
+		t.Fatalf("expected positive commission earned, got %d", overviewPayload.CommissionEarnedCents)
+	}
+	if overviewPayload.OrderVolumes.Total != 2 {
+		t.Fatalf("expected 2 total orders, got %d", overviewPayload.OrderVolumes.Total)
+	}
+	if overviewPayload.OrderVolumes.CODConfirmed != 1 {
+		t.Fatalf("expected 1 cod_confirmed order, got %d", overviewPayload.OrderVolumes.CODConfirmed)
+	}
+	if overviewPayload.OrderVolumes.PendingPayment != 1 {
+		t.Fatalf("expected 1 pending_payment order, got %d", overviewPayload.OrderVolumes.PendingPayment)
+	}
+	if overviewPayload.VendorMetrics.TotalVendors < 2 {
+		t.Fatalf("expected at least two seeded vendors, got %d", overviewPayload.VendorMetrics.TotalVendors)
+	}
+	if overviewPayload.ModerationQueue.PendingProducts != 0 {
+		t.Fatalf("expected no pending moderation products, got %d", overviewPayload.ModerationQueue.PendingProducts)
+	}
+	if overviewPayload.Disputes.RefundRequestsTotal != 1 || overviewPayload.Disputes.PendingTotal != 1 {
+		t.Fatalf("expected one pending dispute, got %#v", overviewPayload.Disputes)
+	}
+
+	revenueRes := requestJSON(t, r, http.MethodGet, "/api/v1/admin/analytics/revenue?days=30", nil, finance.AccessToken)
+	if revenueRes.Code != http.StatusOK {
+		t.Fatalf("admin revenue analytics status=%d body=%s", revenueRes.Code, revenueRes.Body.String())
+	}
+	var revenuePayload struct {
+		WindowDays int `json:"window_days"`
+		Summary    struct {
+			SettledOrdersTotal    int   `json:"settled_orders_total"`
+			GrossRevenueCents     int64 `json:"gross_revenue_cents"`
+			CommissionEarnedCents int64 `json:"commission_earned_cents"`
+		} `json:"summary"`
+		Points []struct {
+			Date       string `json:"date"`
+			OrderCount int    `json:"order_count"`
+		} `json:"points"`
+	}
+	if err := json.Unmarshal(revenueRes.Body.Bytes(), &revenuePayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if revenuePayload.WindowDays != 30 {
+		t.Fatalf("expected window_days=30, got %d", revenuePayload.WindowDays)
+	}
+	if revenuePayload.Summary.SettledOrdersTotal != 1 {
+		t.Fatalf("expected one settled order, got %d", revenuePayload.Summary.SettledOrdersTotal)
+	}
+	if revenuePayload.Summary.GrossRevenueCents <= 0 || revenuePayload.Summary.CommissionEarnedCents <= 0 {
+		t.Fatalf("expected positive revenue summary, got %#v", revenuePayload.Summary)
+	}
+	if len(revenuePayload.Points) != 30 {
+		t.Fatalf("expected 30 daily revenue points, got %d", len(revenuePayload.Points))
+	}
+
+	vendorsRes := requestJSON(t, r, http.MethodGet, "/api/v1/admin/analytics/vendors", nil, finance.AccessToken)
+	if vendorsRes.Code != http.StatusOK {
+		t.Fatalf("admin vendors analytics status=%d body=%s", vendorsRes.Code, vendorsRes.Body.String())
+	}
+	var vendorsPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			VendorID              string `json:"vendor_id"`
+			SettledOrderCount     int    `json:"settled_order_count"`
+			GrossRevenueCents     int64  `json:"gross_revenue_cents"`
+			CommissionEarnedCents int64  `json:"commission_earned_cents"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(vendorsRes.Body.Bytes(), &vendorsPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if vendorsPayload.Total < 2 || len(vendorsPayload.Items) < 2 {
+		t.Fatalf("expected at least two vendor analytics rows, got total=%d len=%d", vendorsPayload.Total, len(vendorsPayload.Items))
+	}
+	foundSettledVendor := false
+	for _, item := range vendorsPayload.Items {
+		if item.SettledOrderCount > 0 {
+			if item.GrossRevenueCents <= 0 || item.CommissionEarnedCents <= 0 {
+				t.Fatalf("expected settled vendor to have positive revenue + commission, got %#v", item)
+			}
+			foundSettledVendor = true
+		}
+	}
+	if !foundSettledVendor {
+		t.Fatal("expected at least one vendor with settled order analytics")
+	}
+
+	badDaysRes := requestJSON(t, r, http.MethodGet, "/api/v1/admin/analytics/revenue?days=0", nil, finance.AccessToken)
+	if badDaysRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected bad days query to return 400, got status=%d body=%s", badDaysRes.Code, badDaysRes.Body.String())
+	}
+
+	supportForbidden := requestJSON(t, r, http.MethodGet, "/api/v1/admin/dashboard/overview", nil, support.AccessToken)
+	if supportForbidden.Code != http.StatusForbidden {
+		t.Fatalf("expected support to be forbidden for admin analytics, got status=%d body=%s", supportForbidden.Code, supportForbidden.Body.String())
+	}
+	buyerForbidden := requestJSON(t, r, http.MethodGet, "/api/v1/admin/analytics/vendors", nil, buyer.AccessToken)
+	if buyerForbidden.Code != http.StatusForbidden {
+		t.Fatalf("expected buyer to be forbidden for admin analytics, got status=%d body=%s", buyerForbidden.Code, buyerForbidden.Body.String())
+	}
+}
+
 func TestCheckoutCreatesMultiShipmentAndIdempotentOrder(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"

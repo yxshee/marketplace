@@ -79,6 +79,95 @@ export interface AdminAuditLogListResponse {
   total: number;
 }
 
+export interface AdminDashboardOrderVolumes {
+  total: number;
+  pending_payment: number;
+  cod_confirmed: number;
+  paid: number;
+  payment_failed: number;
+}
+
+export interface AdminDashboardVendorMetrics {
+  total_vendors: number;
+  pending_verification: number;
+  verified: number;
+  rejected: number;
+  suspended: number;
+  active_with_sales: number;
+  vendors_with_refund_risk: number;
+}
+
+export interface AdminDashboardModerationQueueMetrics {
+  pending_products: number;
+}
+
+export interface AdminDashboardDisputeMetrics {
+  refund_requests_total: number;
+  pending_total: number;
+  approved_total: number;
+  rejected_total: number;
+}
+
+export interface AdminDashboardOverviewResponse {
+  currency: string;
+  platform_revenue_cents: number;
+  commission_earned_cents: number;
+  order_volumes: AdminDashboardOrderVolumes;
+  vendor_metrics: AdminDashboardVendorMetrics;
+  moderation_queue: AdminDashboardModerationQueueMetrics;
+  disputes: AdminDashboardDisputeMetrics;
+  generated_at: string;
+}
+
+export interface AdminAnalyticsRevenueSummary {
+  settled_orders_total: number;
+  gross_revenue_cents: number;
+  commission_earned_cents: number;
+  average_order_value_cents: number;
+}
+
+export interface AdminAnalyticsRevenuePoint {
+  date: string;
+  order_count: number;
+  gross_revenue_cents: number;
+  commission_earned_cents: number;
+}
+
+export interface AdminAnalyticsRevenueResponse {
+  currency: string;
+  window_days: number;
+  summary: AdminAnalyticsRevenueSummary;
+  points: AdminAnalyticsRevenuePoint[];
+}
+
+export interface AdminVendorAnalyticsItem {
+  vendor_id: string;
+  slug: string;
+  display_name: string;
+  verification_state: "pending" | "verified" | "rejected" | "suspended";
+  commission_bps: number;
+  order_count: number;
+  settled_order_count: number;
+  gross_revenue_cents: number;
+  commission_earned_cents: number;
+  shipment_count: number;
+  pending_shipment_count: number;
+  shipped_shipment_count: number;
+  delivered_shipment_count: number;
+  cancelled_shipment_count: number;
+  refund_requests_total: number;
+  refund_pending_total: number;
+  refund_approved_total: number;
+  refund_rejected_total: number;
+  refund_approval_rate_bps: number;
+  settled_order_refund_rate_bps: number;
+}
+
+export interface AdminAnalyticsVendorsResponse {
+  items: AdminVendorAnalyticsItem[];
+  total: number;
+}
+
 export interface VendorProduct {
   id: string;
   vendor_id: string;
