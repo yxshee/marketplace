@@ -9,6 +9,28 @@ export interface ApiErrorResponse {
   };
 }
 
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    vendor_id: string | null;
+  };
+}
+
+export interface VendorProfile {
+  id: string;
+  owner_user_id: string;
+  slug: string;
+  display_name: string;
+  verification_state: "pending" | "verified" | "rejected" | "suspended";
+  commission_override_bps: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface HealthResponse {
   status: "ok";
   service: string;
