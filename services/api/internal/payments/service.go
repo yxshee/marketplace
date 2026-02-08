@@ -31,6 +31,8 @@ var (
 	ErrInvalidOrder          = errors.New("order is invalid")
 	ErrOrderNotPayable       = errors.New("order is not payable")
 	ErrIdempotencyKey        = errors.New("idempotency key is required")
+	ErrStripeDisabled        = errors.New("stripe payments are disabled")
+	ErrCODDisabled           = errors.New("cod payments are disabled")
 	ErrWebhookSecretRequired = errors.New("stripe webhook secret is required")
 	ErrInvalidSignature      = errors.New("invalid stripe webhook signature")
 	ErrInvalidPayload        = errors.New("invalid stripe webhook payload")
@@ -81,6 +83,17 @@ type CODPayment struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type PaymentSettings struct {
+	StripeEnabled bool      `json:"stripe_enabled"`
+	CODEnabled    bool      `json:"cod_enabled"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type PaymentSettingsUpdate struct {
+	StripeEnabled *bool `json:"stripe_enabled,omitempty"`
+	CODEnabled    *bool `json:"cod_enabled,omitempty"`
+}
+
 type Service struct {
 	mu              sync.Mutex
 	webhookSecret   string
@@ -98,6 +111,7 @@ type Service struct {
 	codPaymentsByID   map[string]CODPayment
 	codByRequestID    map[string]string
 	codByOrderID      map[string]string
+	settings          PaymentSettings
 }
 
 type stripeWebhookEnvelope struct {
@@ -117,6 +131,7 @@ func NewService(cfg Config) *Service {
 	if client == nil {
 		client = NewMockStripeClient()
 	}
+	nowFn := func() time.Time { return time.Now().UTC() }
 
 	return &Service{
 		webhookSecret:     strings.TrimSpace(cfg.WebhookSecret),
@@ -124,7 +139,7 @@ func NewService(cfg Config) *Service {
 		markOrderPaid:     cfg.MarkOrderPaid,
 		markOrderFailed:   cfg.MarkOrderPaymentFailed,
 		markOrderCOD:      cfg.MarkOrderCODConfirmed,
-		now:               func() time.Time { return time.Now().UTC() },
+		now:               nowFn,
 		paymentsByID:      make(map[string]StripeIntent),
 		orderToPaymentID:  make(map[string]string),
 		intentByRequestID: make(map[string]string),
@@ -133,6 +148,11 @@ func NewService(cfg Config) *Service {
 		codPaymentsByID:   make(map[string]CODPayment),
 		codByRequestID:    make(map[string]string),
 		codByOrderID:      make(map[string]string),
+		settings: PaymentSettings{
+			StripeEnabled: true,
+			CODEnabled:    true,
+			UpdatedAt:     nowFn(),
+		},
 	}
 }
 
@@ -158,6 +178,16 @@ func (s *Service) CreateStripeIntent(ctx context.Context, order commerce.Order, 
 		intent := s.paymentsByID[paymentID]
 		s.mu.Unlock()
 		return intent, nil
+	}
+	if paymentID, exists := s.orderToPaymentID[orderID]; exists {
+		intent := s.paymentsByID[paymentID]
+		s.intentByRequestID[requestID] = paymentID
+		s.mu.Unlock()
+		return intent, nil
+	}
+	if !s.settings.StripeEnabled {
+		s.mu.Unlock()
+		return StripeIntent{}, ErrStripeDisabled
 	}
 	s.mu.Unlock()
 
@@ -232,6 +262,10 @@ func (s *Service) ConfirmCODPayment(order commerce.Order, idempotencyKey string)
 		s.mu.Unlock()
 		return payment, nil
 	}
+	if !s.settings.CODEnabled {
+		s.mu.Unlock()
+		return CODPayment{}, ErrCODDisabled
+	}
 
 	now := s.now()
 	payment := CODPayment{
@@ -257,6 +291,33 @@ func (s *Service) ConfirmCODPayment(order commerce.Order, idempotencyKey string)
 	}
 
 	return payment, nil
+}
+
+func (s *Service) GetSettings() PaymentSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.settings
+}
+
+func (s *Service) UpdateSettings(update PaymentSettingsUpdate) PaymentSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	changed := false
+	if update.StripeEnabled != nil {
+		s.settings.StripeEnabled = *update.StripeEnabled
+		changed = true
+	}
+	if update.CODEnabled != nil {
+		s.settings.CODEnabled = *update.CODEnabled
+		changed = true
+	}
+	if changed {
+		s.settings.UpdatedAt = s.now()
+	}
+
+	return s.settings
 }
 
 func (s *Service) HandleStripeWebhook(payload []byte, signatureHeader string) (WebhookResult, error) {
