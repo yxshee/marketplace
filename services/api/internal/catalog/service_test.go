@@ -109,3 +109,39 @@ func TestSearchFilteringSortingAndPagination(t *testing.T) {
 		t.Fatalf("expected one paged item, got %d", len(paged.Items))
 	}
 }
+
+func TestVendorProductUpdateDeleteAndList(t *testing.T) {
+	service := NewService()
+	product := service.CreateProduct("usr_vendor", "ven_vendor", "Notebook", "Simple notebook", "USD", 2500)
+
+	price := int64(3100)
+	title := "Notebook Pro"
+	updated, err := service.UpdateProduct(product.ID, "usr_vendor", "ven_vendor", UpdateProductInput{
+		Title:             &title,
+		PriceInclTaxCents: &price,
+	})
+	if err != nil {
+		t.Fatalf("UpdateProduct() error = %v", err)
+	}
+	if updated.Title != title || updated.PriceInclTaxCents != price {
+		t.Fatalf("unexpected updated product payload: %#v", updated)
+	}
+
+	if _, err := service.UpdateProduct(product.ID, "usr_other", "ven_vendor", UpdateProductInput{
+		Title: &title,
+	}); err != ErrUnauthorizedProductAccess {
+		t.Fatalf("expected ErrUnauthorizedProductAccess, got %v", err)
+	}
+
+	items := service.ListVendorProducts("usr_vendor", "ven_vendor")
+	if len(items) != 1 {
+		t.Fatalf("expected one vendor product, got %d", len(items))
+	}
+
+	if err := service.DeleteProduct(product.ID, "usr_vendor", "ven_vendor"); err != nil {
+		t.Fatalf("DeleteProduct() error = %v", err)
+	}
+	if len(service.ListVendorProducts("usr_vendor", "ven_vendor")) != 0 {
+		t.Fatalf("expected no products after delete")
+	}
+}
