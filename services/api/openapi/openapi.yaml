@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.16.0
+  version: 0.17.0
 servers:
   - url: /api/v1
 paths:
@@ -837,6 +837,52 @@ paths:
         "204":
           description: Promotion deleted
 
+  /admin/audit-logs:
+    get:
+      summary: List platform audit logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: actor_type
+          schema:
+            type: string
+            enum: [admin, vendor, buyer]
+        - in: query
+          name: actor_id
+          schema:
+            type: string
+        - in: query
+          name: action
+          schema:
+            type: string
+        - in: query
+          name: target_type
+          schema:
+            type: string
+        - in: query
+          name: target_id
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Audit log list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAuditLogListResponse"
+
   /admin/settings/payments:
     get:
       summary: Fetch platform payment settings
@@ -1014,6 +1060,49 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AdminPromotion"
+        total:
+          type: integer
+      required: [items, total]
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        actor_type:
+          type: string
+          enum: [admin, vendor, buyer]
+        actor_id:
+          type: string
+        actor_role:
+          type: string
+        action:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: string
+        before_json:
+          type: object
+          additionalProperties: true
+        after_json:
+          type: object
+          additionalProperties: true
+        metadata_json:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+      required: [id, actor_type, actor_id, action, target_type, target_id, created_at]
+
+    AdminAuditLogListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
         total:
           type: integer
       required: [items, total]

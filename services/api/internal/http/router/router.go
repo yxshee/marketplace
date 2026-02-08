@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auditlog"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
@@ -33,6 +34,7 @@ type api struct {
 	catalogService *catalog.Service
 	coupons        *coupons.Service
 	promotions     *promotions.Service
+	auditLogs      *auditlog.Service
 	commerce       *commerce.Service
 	invoices       *invoices.Service
 	payments       *payments.Service
@@ -76,6 +78,7 @@ func New(cfg config.Config) (http.Handler, error) {
 		catalogService: catalog.NewService(),
 		coupons:        coupons.NewService(),
 		promotions:     promotions.NewService(),
+		auditLogs:      auditlog.NewService(),
 		commerce:       commerceService,
 		invoices: invoices.NewService(invoices.Config{
 			PlatformName:         "Marketplace Gumroad Inspired",
@@ -217,6 +220,11 @@ func New(cfg config.Config) (http.Handler, error) {
 				adminRoutes.Post("/admin/promotions", apiHandlers.handleAdminPromotionCreate)
 				adminRoutes.Patch("/admin/promotions/{promotionID}", apiHandlers.handleAdminPromotionUpdate)
 				adminRoutes.Delete("/admin/promotions/{promotionID}", apiHandlers.handleAdminPromotionDelete)
+			})
+
+			private.Group(func(adminRoutes chi.Router) {
+				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionViewAuditLogs))
+				adminRoutes.Get("/admin/audit-logs", apiHandlers.handleAdminAuditLogsList)
 			})
 
 			private.Group(func(adminRoutes chi.Router) {

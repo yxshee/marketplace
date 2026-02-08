@@ -100,6 +100,11 @@ func (a *api) handleAdminVendorList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) handleAdminVendorVerification(w http.ResponseWriter, r *http.Request) {
+	if _, ok := auth.IdentityFromContext(r.Context()); !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	vendorID := chi.URLParam(r, "vendorID")
 	if vendorID == "" {
 		writeError(w, http.StatusBadRequest, "vendor id is required")
@@ -112,6 +117,7 @@ func (a *api) handleAdminVendorVerification(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	previousVendor, _ := a.vendorService.GetByID(vendorID)
 	updatedVendor, err := a.vendorService.SetVerificationState(vendorID, vendors.VerificationState(req.State))
 	if err != nil {
 		switch {
@@ -125,11 +131,27 @@ func (a *api) handleAdminVendorVerification(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	_ = req.Reason // carried for future audit persistence in the API foundation phase
+	before := map[string]interface{}{
+		"verification_state": previousVendor.VerificationState,
+	}
+	after := map[string]interface{}{
+		"verification_state": updatedVendor.VerificationState,
+	}
+	metadata := map[string]interface{}{}
+	if reason := strings.TrimSpace(req.Reason); reason != "" {
+		metadata["reason"] = reason
+	}
+	a.recordAuditLog(r, "vendor_verification_updated", "vendor", updatedVendor.ID, before, after, metadata)
+
 	writeJSON(w, http.StatusOK, updatedVendor)
 }
 
 func (a *api) handleAdminVendorCommission(w http.ResponseWriter, r *http.Request) {
+	if _, ok := auth.IdentityFromContext(r.Context()); !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	vendorID := chi.URLParam(r, "vendorID")
 	if vendorID == "" {
 		writeError(w, http.StatusBadRequest, "vendor id is required")
@@ -146,6 +168,7 @@ func (a *api) handleAdminVendorCommission(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	previousVendor, _ := a.vendorService.GetByID(vendorID)
 	updatedVendor, err := a.vendorService.SetCommission(vendorID, req.CommissionOverrideBPS)
 	if err != nil {
 		if errors.Is(err, vendors.ErrVendorNotFound) {
@@ -155,6 +178,22 @@ func (a *api) handleAdminVendorCommission(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "unable to update commission")
 		return
 	}
+
+	before := map[string]interface{}{
+		"commission_override_bps": previousVendor.CommissionOverrideBPS,
+	}
+	after := map[string]interface{}{
+		"commission_override_bps": updatedVendor.CommissionOverrideBPS,
+	}
+	a.recordAuditLog(
+		r,
+		"vendor_commission_updated",
+		"vendor",
+		updatedVendor.ID,
+		before,
+		after,
+		map[string]interface{}{"default_commission_bps": a.defaultCommBPS},
+	)
 
 	writeJSON(w, http.StatusOK, updatedVendor)
 }

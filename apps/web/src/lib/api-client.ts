@@ -1,4 +1,5 @@
 import type {
+  AdminAuditLogListResponse,
   AdminModerationProductListResponse,
   AdminOrderListResponse,
   AdminPromotion,
@@ -33,6 +34,7 @@ import type {
   VendorShipmentStatus,
 } from "@marketplace/shared/contracts/api";
 import {
+  adminAuditLogQuerySchema,
   adminPromotionCreateSchema,
   adminPromotionUpdateSchema,
   adminOrderStatusUpdateSchema,
@@ -74,9 +76,9 @@ export interface ApiCallResult<T> {
   guestToken?: string;
 }
 
-const toQueryString = (params: CatalogSearchParams): string => {
+const toQueryStringFromRecord = <T extends object>(params: T): string => {
   const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(params as Record<string, unknown>).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") {
       return;
     }
@@ -84,6 +86,10 @@ const toQueryString = (params: CatalogSearchParams): string => {
   });
   const serialized = query.toString();
   return serialized.length > 0 ? `?${serialized}` : "";
+};
+
+const toQueryString = (params: CatalogSearchParams): string => {
+  return toQueryStringFromRecord(params);
 };
 
 const normalizeSearchParams = (params: CatalogSearchParams): CatalogSearchParams => {
@@ -419,6 +425,37 @@ export const getVendorVerificationStatus = async (
   accessToken: string,
 ): Promise<ApiCallResult<VendorProfile>> => {
   return fetchJSON<VendorProfile>("/vendor/verification-status", {
+    accessToken,
+  });
+};
+
+export interface AdminAuditLogQueryParams {
+  actor_type?: "admin" | "vendor" | "buyer";
+  actor_id?: string;
+  action?: string;
+  target_type?: string;
+  target_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
+const normalizeAdminAuditLogQuery = (
+  params: AdminAuditLogQueryParams,
+): AdminAuditLogQueryParams => {
+  const parsed = adminAuditLogQuerySchema.safeParse(params);
+  if (!parsed.success) {
+    return {};
+  }
+  return parsed.data;
+};
+
+export const getAdminAuditLogs = async (
+  accessToken: string,
+  params: AdminAuditLogQueryParams = {},
+): Promise<ApiCallResult<AdminAuditLogListResponse>> => {
+  const normalized = normalizeAdminAuditLogQuery(params);
+  const suffix = toQueryStringFromRecord(normalized);
+  return fetchJSON<AdminAuditLogListResponse>(`/admin/audit-logs${suffix}`, {
     accessToken,
   });
 };

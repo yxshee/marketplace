@@ -11,6 +11,7 @@ import {
   adminVendorVerificationAction,
 } from "@/app/actions/admin";
 import {
+  getAdminAuditLogs,
   getAdminModerationProducts,
   getAdminOrders,
   getAdminPromotions,
@@ -44,23 +45,35 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
   >["payload"]["items"];
   let adminOrders = [] as Awaited<ReturnType<typeof getAdminOrders>>["payload"]["items"];
   let adminPromotions = [] as Awaited<ReturnType<typeof getAdminPromotions>>["payload"]["items"];
+  let adminAuditLogs = [] as Awaited<ReturnType<typeof getAdminAuditLogs>>["payload"]["items"];
   let loadError = false;
 
   if (accessToken) {
     try {
-      const [pendingResult, allResult, moderationResult, ordersResult, promotionsResult] =
+      const [
+        pendingResult,
+        allResult,
+        moderationResult,
+        ordersResult,
+        promotionsResult,
+        auditLogsResult,
+      ] =
         await Promise.all([
-        getAdminVendors(accessToken, "pending"),
-        getAdminVendors(accessToken),
-        getAdminModerationProducts(accessToken, "pending_approval"),
-        getAdminOrders(accessToken),
-        getAdminPromotions(accessToken),
-      ]);
+          getAdminVendors(accessToken, "pending"),
+          getAdminVendors(accessToken),
+          getAdminModerationProducts(accessToken, "pending_approval"),
+          getAdminOrders(accessToken),
+          getAdminPromotions(accessToken),
+          getAdminAuditLogs(accessToken, {
+            limit: 25,
+          }),
+        ]);
       pendingVendors = pendingResult.payload.items;
       allVendors = allResult.payload.items;
       moderationProducts = moderationResult.payload.items;
       adminOrders = ordersResult.payload.items;
       adminPromotions = promotionsResult.payload.items;
+      adminAuditLogs = auditLogsResult.payload.items;
     } catch {
       loadError = true;
     }
@@ -522,6 +535,55 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
                           Delete promotion
                         </button>
                       </form>
+                    </article>
+                  ))}
+                </div>
+              </SurfaceCard>
+
+              <SurfaceCard>
+                <h2 className="font-display text-xl font-semibold">Audit log viewer</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Latest 25 sensitive actions across admin operations and vendor-impacting changes.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  {adminAuditLogs.length === 0 ? (
+                    <p className="text-sm text-muted">No audit entries recorded yet.</p>
+                  ) : null}
+                  {adminAuditLogs.map((entry) => (
+                    <article className="rounded-sm border border-border p-3" key={entry.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-medium text-ink">{entry.action}</h3>
+                          <p className="mt-1 text-xs text-muted">
+                            {entry.id} · {new Date(entry.created_at).toLocaleString()}
+                          </p>
+                          <p className="mt-1 text-xs text-muted">
+                            Actor: {entry.actor_type} {entry.actor_role ? `(${entry.actor_role})` : ""} ·{" "}
+                            {entry.actor_id}
+                          </p>
+                          <p className="mt-1 text-xs text-muted">
+                            Target: {entry.target_type} · {entry.target_id}
+                          </p>
+                        </div>
+                      </div>
+                      {entry.before_json || entry.after_json ? (
+                        <pre className="mt-2 overflow-x-auto rounded-sm border border-border bg-white px-2 py-1.5 text-[11px] text-muted">
+                          {JSON.stringify(
+                            {
+                              before: entry.before_json ?? null,
+                              after: entry.after_json ?? null,
+                            },
+                            null,
+                            2,
+                          )}
+                        </pre>
+                      ) : null}
+                      {entry.metadata_json ? (
+                        <pre className="mt-2 overflow-x-auto rounded-sm border border-border bg-white px-2 py-1.5 text-[11px] text-muted">
+                          {JSON.stringify(entry.metadata_json, null, 2)}
+                        </pre>
+                      ) : null}
                     </article>
                   ))}
                 </div>

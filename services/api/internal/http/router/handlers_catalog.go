@@ -277,6 +277,7 @@ func (a *api) handleAdminModerateProduct(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	previousProduct, _ := a.catalogService.GetProductByID(productID)
 	updatedProduct, err := a.catalogService.ReviewProduct(
 		productID,
 		identity.UserID,
@@ -296,6 +297,27 @@ func (a *api) handleAdminModerateProduct(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
+
+	before := map[string]interface{}{
+		"status":            previousProduct.Status,
+		"moderation_reason": previousProduct.ModerationReason,
+	}
+	after := map[string]interface{}{
+		"status":            updatedProduct.Status,
+		"moderation_reason": updatedProduct.ModerationReason,
+	}
+	a.recordAuditLog(
+		r,
+		"product_moderation_reviewed",
+		"product",
+		updatedProduct.ID,
+		before,
+		after,
+		map[string]interface{}{
+			"decision": strings.TrimSpace(req.Decision),
+			"reason":   strings.TrimSpace(req.Reason),
+		},
+	)
 
 	writeJSON(w, http.StatusOK, updatedProduct)
 }

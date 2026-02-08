@@ -62,6 +62,12 @@ func (a *api) handleAdminOrderStatusUpdate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	previousOrder, found := a.commerce.GetOrderForAdmin(orderID)
+	if !found {
+		writeError(w, http.StatusNotFound, "order not found")
+		return
+	}
+
 	updatedOrder, err := a.commerce.UpdateOrderStatus(orderID, req.Status)
 	if err != nil {
 		switch {
@@ -76,6 +82,22 @@ func (a *api) handleAdminOrderStatusUpdate(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
+
+	before := map[string]interface{}{
+		"status": previousOrder.Status,
+	}
+	after := map[string]interface{}{
+		"status": updatedOrder.Status,
+	}
+	a.recordAuditLog(
+		r,
+		"order_status_updated",
+		"order",
+		updatedOrder.ID,
+		before,
+		after,
+		nil,
+	)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"order": updatedOrder,
