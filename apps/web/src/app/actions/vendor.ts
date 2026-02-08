@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import {
   createVendorCoupon,
   createVendorProduct,
+  decideVendorRefundRequest,
   deleteVendorCoupon,
   deleteVendorProduct,
   loginAuthUser,
@@ -99,7 +100,9 @@ export async function vendorCreateProductAction(formData: FormData): Promise<nev
   const description = String(formData.get("description") ?? "").trim();
   const categorySlug = String(formData.get("category_slug") ?? "general").trim();
   const tagsRaw = String(formData.get("tags") ?? "").trim();
-  const currency = String(formData.get("currency") ?? "USD").trim().toUpperCase();
+  const currency = String(formData.get("currency") ?? "USD")
+    .trim()
+    .toUpperCase();
   const priceCents = Number.parseInt(String(formData.get("price_incl_tax_cents") ?? "0"), 10);
   const stockQty = Number.parseInt(String(formData.get("stock_qty") ?? "0"), 10);
 
@@ -192,7 +195,9 @@ export async function vendorSubmitModerationAction(formData: FormData): Promise<
 export async function vendorCreateCouponAction(formData: FormData): Promise<never> {
   const accessToken = await requireVendorToken();
   const code = String(formData.get("code") ?? "").trim();
-  const discountType = String(formData.get("discount_type") ?? "").trim() as "percent" | "amount_cents";
+  const discountType = String(formData.get("discount_type") ?? "").trim() as
+    | "percent"
+    | "amount_cents";
   const discountValue = Number.parseInt(String(formData.get("discount_value") ?? "0"), 10);
 
   try {
@@ -273,6 +278,33 @@ export async function vendorUpdateShipmentStatusAction(formData: FormData): Prom
   }
 
   redirect("/vendor?notice=vendor-shipment-updated");
+}
+
+export async function vendorRefundDecisionAction(formData: FormData): Promise<never> {
+  const accessToken = await requireVendorToken();
+  const refundRequestID = String(formData.get("refund_request_id") ?? "").trim();
+  const decision = String(formData.get("decision") ?? "").trim();
+  const decisionReason = String(formData.get("decision_reason") ?? "").trim();
+
+  if (!refundRequestID) {
+    redirect("/vendor?error=vendor-refund-request-missing");
+  }
+
+  try {
+    await decideVendorRefundRequest(
+      refundRequestID,
+      {
+        decision: decision as "approve" | "reject",
+        decision_reason: decisionReason || undefined,
+      },
+      accessToken,
+    );
+    revalidatePath("/vendor");
+  } catch {
+    redirect("/vendor?error=vendor-refund-decision-failed");
+  }
+
+  redirect("/vendor?notice=vendor-refund-updated");
 }
 
 export async function vendorLogoutAction(): Promise<never> {

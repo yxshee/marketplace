@@ -111,7 +111,12 @@ export const vendorProductUpdateSchema = z
   );
 
 export const vendorCouponCreateSchema = z.object({
-  code: z.string().trim().min(3).max(32).regex(/^[A-Za-z0-9_-]+$/),
+  code: z
+    .string()
+    .trim()
+    .min(3)
+    .max(32)
+    .regex(/^[A-Za-z0-9_-]+$/),
   discount_type: z.enum(["percent", "amount_cents"]),
   discount_value: z.number().int().positive(),
   starts_at: z.string().datetime().optional(),
@@ -122,7 +127,13 @@ export const vendorCouponCreateSchema = z.object({
 
 export const vendorCouponUpdateSchema = z
   .object({
-    code: z.string().trim().min(3).max(32).regex(/^[A-Za-z0-9_-]+$/).optional(),
+    code: z
+      .string()
+      .trim()
+      .min(3)
+      .max(32)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
     discount_type: z.enum(["percent", "amount_cents"]).optional(),
     discount_value: z.number().int().positive().optional(),
     active: z.boolean().optional(),
@@ -138,8 +149,27 @@ export const vendorCouponUpdateSchema = z
     },
   );
 
-export const vendorShipmentStatusSchema = z.enum(["pending", "packed", "shipped", "delivered", "cancelled"]);
+export const vendorShipmentStatusSchema = z.enum([
+  "pending",
+  "packed",
+  "shipped",
+  "delivered",
+  "cancelled",
+]);
 
 export const vendorShipmentStatusUpdateSchema = z.object({
   status: vendorShipmentStatusSchema,
+});
+
+export const refundRequestCreateSchema = z.object({
+  shipment_id: z.string().trim().min(1),
+  reason: z.string().trim().min(3).max(1000),
+  requested_amount_cents: z.number().int().positive().optional(),
+});
+
+export const vendorRefundDecisionSchema = z.enum(["approve", "reject"]);
+
+export const vendorRefundDecisionUpdateSchema = z.object({
+  decision: vendorRefundDecisionSchema,
+  decision_reason: z.string().trim().max(1000).optional(),
 });
