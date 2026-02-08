@@ -7,3 +7,5 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	golang.org/x/crypto v0.47.0
 )
+
+require github.com/stripe/stripe-go/v83 v83.2.1

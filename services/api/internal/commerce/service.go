@@ -14,6 +14,8 @@ const (
 	DefaultCurrency           = "USD"
 	DefaultShippingFeeCents   = int64(500)
 	OrderStatusPendingPayment = "pending_payment"
+	OrderStatusPaid           = "paid"
+	OrderStatusPaymentFailed  = "payment_failed"
 	ShipmentStatusPending     = "pending"
 )
 
@@ -435,6 +437,39 @@ func (s *Service) GetOrder(actor Actor, orderID string) (Order, bool, error) {
 		return Order{}, false, nil
 	}
 	return order, true, nil
+}
+
+func (s *Service) MarkOrderPaid(orderID string) (Order, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	order, exists := s.ordersByID[strings.TrimSpace(orderID)]
+	if !exists {
+		return Order{}, false
+	}
+	if order.Status != OrderStatusPaid {
+		order.Status = OrderStatusPaid
+		s.ordersByID[order.ID] = order
+	}
+
+	return order, true
+}
+
+func (s *Service) MarkOrderPaymentFailed(orderID string) (Order, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	order, exists := s.ordersByID[strings.TrimSpace(orderID)]
+	if !exists {
+		return Order{}, false
+	}
+	if order.Status == OrderStatusPaid {
+		return order, true
+	}
+	order.Status = OrderStatusPaymentFailed
+	s.ordersByID[order.ID] = order
+
+	return order, true
 }
 
 func validateProductSnapshot(product ProductSnapshot) error {
