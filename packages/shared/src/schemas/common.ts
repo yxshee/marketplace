@@ -9,6 +9,11 @@ export const moneySchema = z.object({
   currency: z.literal("USD"),
 });
 
+export const authCredentialsSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(8).max(128),
+});
+
 export const catalogSortSchema = z.enum([
   "relevance",
   "newest",
@@ -50,4 +55,14 @@ export const stripeCreateIntentSchema = z.object({
 export const codConfirmPaymentSchema = z.object({
   order_id: z.string().trim().min(1),
   idempotency_key: z.string().trim().min(8).max(128),
+});
+
+export const vendorRegisterSchema = z.object({
+  slug: z
+    .string()
+    .trim()
+    .min(3)
+    .max(48)
+    .regex(/^[a-z0-9-]+$/),
+  display_name: z.string().trim().min(2).max(80),
 });

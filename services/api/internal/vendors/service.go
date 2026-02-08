@@ -27,14 +27,14 @@ var (
 
 // Vendor captures vendor profile and verification state.
 type Vendor struct {
-	ID                    string
-	OwnerUserID           string
-	Slug                  string
-	DisplayName           string
-	VerificationState     VerificationState
-	CommissionOverrideBPS *int32
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	ID                    string            `json:"id"`
+	OwnerUserID           string            `json:"owner_user_id"`
+	Slug                  string            `json:"slug"`
+	DisplayName           string            `json:"display_name"`
+	VerificationState     VerificationState `json:"verification_state"`
+	CommissionOverrideBPS *int32            `json:"commission_override_bps"`
+	CreatedAt             time.Time         `json:"created_at"`
+	UpdatedAt             time.Time         `json:"updated_at"`
 }
 
 // Service provides in-memory vendor operations for the API foundation phase.
