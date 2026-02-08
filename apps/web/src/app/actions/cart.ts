@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import {
   addCartItem,
   confirmCODPayment,
+  createOrderRefundRequest,
   createStripePaymentIntent,
   deleteCartItem,
   placeOrder,
@@ -175,4 +176,45 @@ export async function placeOrderWithStripeAction(formData: FormData): Promise<ne
   }
 
   redirect(redirectURL);
+}
+
+export async function createRefundRequestAction(formData: FormData): Promise<never> {
+  const orderID = String(formData.get("order_id") ?? "").trim();
+  const shipmentID = String(formData.get("shipment_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  const requestedAmountRaw = String(formData.get("requested_amount_cents") ?? "").trim();
+
+  if (!orderID || !shipmentID) {
+    redirect("/checkout/confirmation?error=refund-request-missing-context");
+  }
+
+  const requestedAmountCents = requestedAmountRaw
+    ? Number.parseInt(requestedAmountRaw, 10)
+    : undefined;
+
+  try {
+    const guestToken = await readGuestToken();
+    const response = await createOrderRefundRequest(
+      orderID,
+      {
+        shipment_id: shipmentID,
+        reason,
+        requested_amount_cents:
+          requestedAmountCents !== undefined && !Number.isNaN(requestedAmountCents)
+            ? requestedAmountCents
+            : undefined,
+      },
+      guestToken,
+    );
+    await persistGuestToken(response.guestToken ?? guestToken);
+    revalidatePath("/checkout/confirmation");
+  } catch {
+    redirect(
+      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&error=refund-request-failed`,
+    );
+  }
+
+  redirect(
+    `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&notice=refund-request-created`,
+  );
 }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.11.0
+  version: 0.12.0
 servers:
   - url: /api/v1
 paths:
@@ -195,6 +195,29 @@ paths:
       responses:
         "200":
           description: Order detail
+
+  /orders/{orderID}/refund-requests:
+    post:
+      summary: Create refund request for an actor-owned order shipment
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuyerCreateRefundRequest"
+      responses:
+        "201":
+          description: Refund request created
 
   /invoices/{orderID}/download:
     get:
@@ -529,6 +552,42 @@ paths:
         "200":
           description: Shipment status updated
 
+  /vendor/refund-requests:
+    get:
+      summary: List refund requests for authenticated vendor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        "200":
+          description: Vendor refund request list
+
+  /vendor/refund-requests/{refundRequestID}/decision:
+    patch:
+      summary: Apply vendor decision to a pending refund request
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: refundRequestID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorRefundDecisionRequest"
+      responses:
+        "200":
+          description: Refund decision applied
+
   /admin/vendors/{vendorID}/verification:
     patch:
       summary: Update vendor verification state
@@ -793,3 +852,25 @@ components:
           type: string
           enum: [pending, packed, shipped, delivered, cancelled]
       required: [status]
+
+    BuyerCreateRefundRequest:
+      type: object
+      properties:
+        shipment_id:
+          type: string
+        reason:
+          type: string
+        requested_amount_cents:
+          type: integer
+          minimum: 1
+      required: [shipment_id, reason]
+
+    VendorRefundDecisionRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [approve, reject]
+        decision_reason:
+          type: string
+      required: [decision]
