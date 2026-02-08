@@ -348,7 +348,7 @@ Before you begin, ensure you have the following installed:
   <br/><a href="https://golang.org/dl/">Download</a>
 </td>
 <td align="center" width="33%">
-  <img src="https://raw.githubusercontent.com/pnpm/pnpm/main/pnpm-icon.svg" width="64" height="64" alt="pnpm"/>
+  <img src="https://github.com/user-attachments/assets/6233eb65-8ec2-41fd-8315-8f59a3c5274c" width="64" height="64" alt="pnpm"/>
   <br/><strong>pnpm 10+</strong>
   <br/><a href="https://pnpm.io/installation">Install</a>
 </td>
