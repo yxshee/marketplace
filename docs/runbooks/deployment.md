@@ -7,7 +7,7 @@ GitHub Actions runs on pull requests and on `main`:
 
 ## Web deployment (Vercel)
 1. Connect repository to Vercel project.
-2. Set `MARKETPLACE_API_BASE_URL` to deployed API origin + `/api/v1`.
+2. Set `NEXT_PUBLIC_API_BASE_URL` to deployed API origin + `/api/v1` (or `MARKETPLACE_API_BASE_URL` for back-compat).
 3. Deploy on `main` merge.
 
 ## API deployment (Render)
