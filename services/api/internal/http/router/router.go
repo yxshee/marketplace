@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
@@ -24,6 +25,7 @@ type api struct {
 	tokenManager   *auth.TokenManager
 	vendorService  *vendors.Service
 	catalogService *catalog.Service
+	commerce       *commerce.Service
 	defaultCommBPS int32
 }
 
@@ -55,6 +57,7 @@ func New(cfg config.Config) (http.Handler, error) {
 		tokenManager:   tokenManager,
 		vendorService:  vendors.NewService(),
 		catalogService: catalog.NewService(),
+		commerce:       commerce.NewService(500),
 		defaultCommBPS: cfg.DefaultCommission,
 	}
 	if cfg.Environment == "development" {
@@ -74,6 +77,18 @@ func New(cfg config.Config) (http.Handler, error) {
 		v1.Get("/catalog/categories", apiHandlers.handleCatalogCategories)
 		v1.Get("/catalog/products", apiHandlers.handleCatalogList)
 		v1.Get("/catalog/products/{productID}", apiHandlers.handleCatalogProductDetail)
+
+		v1.Group(func(buyerFlow chi.Router) {
+			buyerFlow.Use(apiHandlers.optionalAuthenticate)
+			buyerFlow.Get("/cart", apiHandlers.handleCartGet)
+			buyerFlow.Post("/cart/items", apiHandlers.handleCartAddItem)
+			buyerFlow.Patch("/cart/items/{itemID}", apiHandlers.handleCartUpdateItem)
+			buyerFlow.Delete("/cart/items/{itemID}", apiHandlers.handleCartDeleteItem)
+			buyerFlow.Post("/checkout/quote", apiHandlers.handleCheckoutQuote)
+			buyerFlow.Post("/checkout/place-order", apiHandlers.handleCheckoutPlaceOrder)
+			buyerFlow.Get("/orders/{orderID}", apiHandlers.handleOrderByID)
+		})
+
 		v1.Post("/auth/register", apiHandlers.handleAuthRegister)
 		v1.Post("/auth/login", apiHandlers.handleAuthLogin)
 		v1.Post("/auth/refresh", apiHandlers.handleAuthRefresh)
