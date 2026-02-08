@@ -226,12 +226,12 @@ func TestModerationWorkflowSkeleton(t *testing.T) {
 	}
 
 	var catalogBody struct {
-		Count int `json:"count"`
+		Total int `json:"total"`
 	}
 	if err := json.Unmarshal(catalog.Body.Bytes(), &catalogBody); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if catalogBody.Count != 1 {
-		t.Fatalf("expected 1 catalog item, got %d", catalogBody.Count)
+	if catalogBody.Total != 1 {
+		t.Fatalf("expected 1 catalog item, got %d", catalogBody.Total)
 	}
 }
