@@ -14,4 +14,4 @@ Status: Complete - invoice generation and PDF download flow implemented.
 - [x] pnpm -r build
 - [x] go test ./... (API)
 - [x] UI screenshots included (if UI changes)
-- [ ] Proof outputs added to PR description
+- [x] Proof outputs added to PR description
