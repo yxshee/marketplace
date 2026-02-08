@@ -120,6 +120,7 @@ export async function placeOrderWithCODAction(formData: FormData): Promise<never
     redirect("/checkout?error=place-order-failed");
   }
 
+  let redirectURL = `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=cod&paymentStatus=pending_collection&error=cod-confirmation-failed`;
   try {
     const codResponse = await confirmCODPayment(
       {
@@ -131,14 +132,12 @@ export async function placeOrderWithCODAction(formData: FormData): Promise<never
     await persistGuestToken(codResponse.guestToken ?? guestToken);
     revalidatePath("/cart");
     revalidatePath("/checkout");
-    redirect(
-      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=cod&paymentProviderRef=${encodeURIComponent(codResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(codResponse.payload.status)}`,
-    );
+    redirectURL = `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=cod&paymentProviderRef=${encodeURIComponent(codResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(codResponse.payload.status)}`;
   } catch {
-    redirect(
-      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=cod&paymentStatus=pending_collection&error=cod-confirmation-failed`,
-    );
+    // Keep fallback redirect URL when COD confirmation fails.
   }
+
+  redirect(redirectURL);
 }
 
 export async function placeOrderWithStripeAction(formData: FormData): Promise<never> {
@@ -158,6 +157,7 @@ export async function placeOrderWithStripeAction(formData: FormData): Promise<ne
     redirect("/checkout?error=place-order-failed");
   }
 
+  let redirectURL = `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=stripe&paymentStatus=pending&error=stripe-intent-failed`;
   try {
     const intentResponse = await createStripePaymentIntent(
       {
@@ -169,10 +169,10 @@ export async function placeOrderWithStripeAction(formData: FormData): Promise<ne
     await persistGuestToken(intentResponse.guestToken ?? guestToken);
     revalidatePath("/cart");
     revalidatePath("/checkout");
-    redirect(
-      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=stripe&paymentProviderRef=${encodeURIComponent(intentResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(intentResponse.payload.status)}`,
-    );
+    redirectURL = `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=stripe&paymentProviderRef=${encodeURIComponent(intentResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(intentResponse.payload.status)}`;
   } catch {
-    redirect(`/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentMethod=stripe&paymentStatus=pending&error=stripe-intent-failed`);
+    // Keep fallback redirect URL when Stripe intent creation fails.
   }
+
+  redirect(redirectURL);
 }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.6.0
+  version: 0.7.0
 servers:
   - url: /api/v1
 paths:
@@ -195,6 +195,28 @@ paths:
       responses:
         "200":
           description: Order detail
+
+  /invoices/{orderID}/download:
+    get:
+      summary: Download invoice PDF for an actor-owned order
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invoice PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
 
   /payments/stripe/intent:
     post:
