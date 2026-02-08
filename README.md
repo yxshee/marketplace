@@ -38,6 +38,9 @@
   
 </div>
 
+<img width="1710" height="984" alt="image" src="https://github.com/user-attachments/assets/1a2c461e-a8f8-4c5d-bfaf-2d8dffa52c72" />
+
+
 ---
 
 ## 🎯 Why This Project Exists
