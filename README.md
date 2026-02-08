@@ -9,13 +9,13 @@
   <br/>
   
   <p>
-    <a href="https://github.com/yxshee/marketplace-platform/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/yxshee/marketplace-platform/ci.yml?branch=main&label=CI&style=for-the-badge"/></a>
-    <a href="https://github.com/yxshee/marketplace-platform/releases/tag/v1.0.0"><img alt="Release" src="https://img.shields.io/github/v/tag/yxshee/marketplace-platform?label=release&style=for-the-badge&color=success" /></a>
+    <a href="https://github.com/yxshee/marketplace/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/yxshee/marketplace/ci.yml?branch=main&label=CI&style=for-the-badge"/></a>
+    <a href="https://github.com/yxshee/marketplace/releases/tag/v1.0.0"><img alt="Release" src="https://img.shields.io/github/v/tag/yxshee/marketplace?label=release&style=for-the-badge&color=success" /></a>
     <img alt="Go" src="https://img.shields.io/badge/go-1.24-00ADD8?style=for-the-badge&logo=go" />
     <img alt="Next.js" src="https://img.shields.io/badge/next.js-15-black?style=for-the-badge&logo=next.js" />
     <img alt="TypeScript" src="https://img.shields.io/badge/typescript-strict-3178C6?style=for-the-badge&logo=typescript" />
     <a href="./LICENSE">
-      <img alt="License" src="https://img.shields.io/github/license/yxshee/marketplace-platform?style=for-the-badge" />
+      <img alt="License" src="https://img.shields.io/github/license/yxshee/marketplace?style=for-the-badge" />
     </a>
   </p>
   
@@ -38,8 +38,11 @@
   
 </div>
 
-<img width="1710" height="984" alt="image" src="https://github.com/user-attachments/assets/1a2c461e-a8f8-4c5d-bfaf-2d8dffa52c72" />
+<div align="center">
 
+<img width="80%" alt="image" src="https://github.com/user-attachments/assets/1a2c461e-a8f8-4c5d-bfaf-2d8dffa52c72" />
+
+</div>
 
 ---
 
@@ -291,7 +294,7 @@ flowchart LR
 ## 📁 Repository Layout
 
 ```text
-📦 marketplace-platform
+📦 marketplace
 ┣ 📂 apps
 ┃ ┗ 📂 web                    # 🌐 Next.js frontend (buyer/vendor/admin)
 ┃   ┣ 📂 src
@@ -359,8 +362,6 @@ Before you begin, ensure you have the following installed:
 </table>
 
 ### ⚙️ Installation & Setup
-
-#### 1️⃣ Install dependencies
 
 #### 1️⃣ Install dependencies
 
@@ -797,12 +798,12 @@ copies or substantial portions of the Software.
 
 ### 💬 Questions or Issues?
 
-[![GitHub Issues](https://img.shields.io/github/issues/yxshee/marketplace-platform?style=for-the-badge)](https://github.com/yxshee/marketplace-platform/issues)
-[![GitHub Discussions](https://img.shields.io/github/discussions/yxshee/marketplace-platform?style=for-the-badge)](https://github.com/yxshee/marketplace-platform/discussions)
+[![GitHub Issues](https://img.shields.io/github/issues/yxshee/marketplace?style=for-the-badge)](https://github.com/yxshee/marketplace/issues)
+[![GitHub Discussions](https://img.shields.io/github/discussions/yxshee/marketplace?style=for-the-badge)](https://github.com/yxshee/marketplace/discussions)
 
-**[🐛 Report Bug](https://github.com/yxshee/marketplace-platform/issues/new?template=bug_report.md) •
-[✨ Request Feature](https://github.com/yxshee/marketplace-platform/issues/new?template=feature_request.md) •
-[💬 Start Discussion](https://github.com/yxshee/marketplace-platform/discussions/new)**
+**[🐛 Report Bug](https://github.com/yxshee/marketplace/issues/new?template=bug_report.md) •
+[✨ Request Feature](https://github.com/yxshee/marketplace/issues/new?template=feature_request.md) •
+[💬 Start Discussion](https://github.com/yxshee/marketplace/discussions/new)**
 
 ---
 
