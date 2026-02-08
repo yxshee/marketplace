@@ -186,6 +186,7 @@ func New(cfg config.Config) (http.Handler, error) {
 
 			private.Group(func(adminRoutes chi.Router) {
 				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageVendorVerification))
+				adminRoutes.Get("/admin/vendors", apiHandlers.handleAdminVendorList)
 				adminRoutes.Patch("/admin/vendors/{vendorID}/verification", apiHandlers.handleAdminVendorVerification)
 			})
 

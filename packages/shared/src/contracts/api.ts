@@ -38,6 +38,11 @@ export interface VendorProfile {
   updated_at: string;
 }
 
+export interface AdminVendorListResponse {
+  items: VendorProfile[];
+  total: number;
+}
+
 export interface VendorProduct {
   id: string;
   vendor_id: string;

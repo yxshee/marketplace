@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
@@ -71,6 +72,31 @@ func (a *api) handleVendorVerificationStatus(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusOK, registeredVendor)
+}
+
+func (a *api) handleAdminVendorList(w http.ResponseWriter, r *http.Request) {
+	verificationStateFilter := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("verification_state")))
+
+	var filter *vendors.VerificationState
+	if verificationStateFilter != "" {
+		state := vendors.VerificationState(verificationStateFilter)
+		switch state {
+		case vendors.VerificationPending,
+			vendors.VerificationVerified,
+			vendors.VerificationRejected,
+			vendors.VerificationSuspended:
+			filter = &state
+		default:
+			writeError(w, http.StatusBadRequest, "invalid verification state filter")
+			return
+		}
+	}
+
+	items := a.vendorService.List(filter)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"items": items,
+		"total": len(items),
+	})
 }
 
 func (a *api) handleAdminVendorVerification(w http.ResponseWriter, r *http.Request) {

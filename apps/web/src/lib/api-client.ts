@@ -1,4 +1,5 @@
 import type {
+  AdminVendorListResponse,
   AuthResponse,
   BuyerRefundRequestCreateResponse,
   CODPaymentResponse,
@@ -418,6 +419,30 @@ export const getAdminPaymentSettings = async (
   accessToken: string,
 ): Promise<ApiCallResult<PaymentSettingsResponse>> => {
   return fetchJSON<PaymentSettingsResponse>("/admin/settings/payments", {
+    accessToken,
+  });
+};
+
+export const getAdminVendors = async (
+  accessToken: string,
+  verificationState?: "pending" | "verified" | "rejected" | "suspended",
+): Promise<ApiCallResult<AdminVendorListResponse>> => {
+  const suffix = verificationState
+    ? `?verification_state=${encodeURIComponent(verificationState)}`
+    : "";
+  return fetchJSON<AdminVendorListResponse>(`/admin/vendors${suffix}`, {
+    accessToken,
+  });
+};
+
+export const updateAdminVendorVerification = async (
+  vendorID: string,
+  input: { state: "pending" | "verified" | "rejected" | "suspended"; reason?: string },
+  accessToken: string,
+): Promise<ApiCallResult<VendorProfile>> => {
+  return fetchJSON<VendorProfile>(`/admin/vendors/${vendorID}/verification`, {
+    method: "PATCH",
+    body: input,
     accessToken,
   });
 };

@@ -2,6 +2,7 @@ package vendors
 
 import (
 	"errors"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -102,6 +103,28 @@ func (s *Service) GetByID(vendorID string) (Vendor, bool) {
 	defer s.mu.RUnlock()
 	vendor, exists := s.byID[vendorID]
 	return vendor, exists
+}
+
+func (s *Service) List(verificationStateFilter *VerificationState) []Vendor {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]Vendor, 0, len(s.byID))
+	for _, vendor := range s.byID {
+		if verificationStateFilter != nil && vendor.VerificationState != *verificationStateFilter {
+			continue
+		}
+		items = append(items, vendor)
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].ID < items[j].ID
+		}
+		return items[i].UpdatedAt.After(items[j].UpdatedAt)
+	})
+
+	return items
 }
 
 func (s *Service) SetVerificationState(vendorID string, state VerificationState) (Vendor, error) {

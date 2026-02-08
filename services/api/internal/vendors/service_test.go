@@ -27,4 +27,26 @@ func TestRegisterAndVerificationState(t *testing.T) {
 	if updated.VerificationState != VerificationVerified {
 		t.Fatalf("expected verified state, got %s", updated.VerificationState)
 	}
+
+	second, err := service.Register("usr_2", "second-shop", "Second Shop")
+	if err != nil {
+		t.Fatalf("Register() second vendor error = %v", err)
+	}
+	if _, err := service.SetVerificationState(second.ID, VerificationRejected); err != nil {
+		t.Fatalf("SetVerificationState() second vendor error = %v", err)
+	}
+
+	allVendors := service.List(nil)
+	if len(allVendors) != 2 {
+		t.Fatalf("expected two vendors in list, got %d", len(allVendors))
+	}
+
+	verified := VerificationVerified
+	verifiedVendors := service.List(&verified)
+	if len(verifiedVendors) != 1 {
+		t.Fatalf("expected one verified vendor, got %d", len(verifiedVendors))
+	}
+	if verifiedVendors[0].ID != created.ID {
+		t.Fatalf("expected verified vendor %s, got %s", created.ID, verifiedVendors[0].ID)
+	}
 }
