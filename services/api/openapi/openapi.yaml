@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.3.0
+  version: 0.4.0
 servers:
   - url: /api/v1
 paths:
@@ -80,6 +80,121 @@ paths:
       responses:
         "200":
           description: Product detail
+
+  /cart:
+    get:
+      summary: Get actor-scoped cart (buyer session or guest token)
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cart snapshot
+
+  /cart/items:
+    post:
+      summary: Add or replace quantity for a cart item
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartAddItemRequest"
+      responses:
+        "200":
+          description: Updated cart
+
+  /cart/items/{itemID}:
+    patch:
+      summary: Update quantity of an existing cart item
+      parameters:
+        - in: path
+          name: itemID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartUpdateItemRequest"
+      responses:
+        "200":
+          description: Updated cart
+    delete:
+      summary: Remove an item from cart
+      parameters:
+        - in: path
+          name: itemID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated cart
+
+  /checkout/quote:
+    post:
+      summary: Build a multi-shipment checkout quote from current cart
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Checkout quote
+
+  /checkout/place-order:
+    post:
+      summary: Place order from current cart with idempotency key
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutPlaceOrderRequest"
+      responses:
+        "201":
+          description: Order placed
+
+  /orders/{orderID}:
+    get:
+      summary: Fetch actor-owned order by id
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order detail
 
   /auth/register:
     post:
@@ -261,3 +376,29 @@ components:
         refresh_token:
           type: string
       required: [refresh_token]
+
+    CartAddItemRequest:
+      type: object
+      properties:
+        product_id:
+          type: string
+        qty:
+          type: integer
+          minimum: 1
+      required: [product_id, qty]
+
+    CartUpdateItemRequest:
+      type: object
+      properties:
+        qty:
+          type: integer
+          minimum: 1
+      required: [qty]
+
+    CheckoutPlaceOrderRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+          minLength: 8
+      required: [idempotency_key]

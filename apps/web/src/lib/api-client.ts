@@ -1,14 +1,34 @@
 import type {
+  CartResponse,
   CatalogCategoriesResponse,
   CatalogCategory,
   CatalogListResponse,
   CatalogProductDetailResponse,
   CatalogSearchParams,
+  CheckoutQuoteResponse,
+  OrderResponse,
 } from "@marketplace/shared/contracts/api";
-import { catalogSearchSchema } from "@marketplace/shared/schemas/common";
+import {
+  cartItemMutationSchema,
+  cartItemQtySchema,
+  catalogSearchSchema,
+  checkoutPlaceOrderSchema,
+} from "@marketplace/shared/schemas/common";
 import { fallbackCategories, fallbackProducts, fallbackVendorNameByID } from "@/lib/catalog-fallback";
 
 const API_BASE_URL = process.env.MARKETPLACE_API_BASE_URL ?? "http://localhost:8080/api/v1";
+const guestTokenHeader = "X-Guest-Token";
+
+interface RequestOptions {
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  body?: unknown;
+  guestToken?: string;
+}
+
+export interface ApiCallResult<T> {
+  payload: T;
+  guestToken?: string;
+}
 
 const toQueryString = (params: CatalogSearchParams): string => {
   const query = new URLSearchParams();
@@ -30,16 +50,36 @@ const normalizeSearchParams = (params: CatalogSearchParams): CatalogSearchParams
   return parsed.data;
 };
 
-const fetchJSON = async <T>(path: string): Promise<T> => {
+const fetchJSON = async <T>(path: string, options: RequestOptions = {}): Promise<ApiCallResult<T>> => {
+  const headers = new Headers({
+    "Content-Type": "application/json",
+  });
+  if (options.guestToken) {
+    headers.set(guestTokenHeader, options.guestToken);
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: options.method ?? "GET",
     cache: "no-store",
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
 
   if (!response.ok) {
     throw new Error(`api request failed: ${response.status}`);
   }
 
-  return (await response.json()) as T;
+  const payload = (await response.json()) as T;
+  const headerGuestToken = response.headers.get(guestTokenHeader) ?? undefined;
+  const bodyGuestToken =
+    typeof payload === "object" && payload !== null && "guest_token" in payload
+      ? (payload as { guest_token?: string }).guest_token
+      : undefined;
+
+  return {
+    payload,
+    guestToken: headerGuestToken ?? bodyGuestToken,
+  };
 };
 
 const fallbackSearch = (params: CatalogSearchParams): CatalogListResponse => {
@@ -98,10 +138,20 @@ const fallbackSearch = (params: CatalogSearchParams): CatalogListResponse => {
   };
 };
 
+const emptyCart = (guestToken?: string): CartResponse => ({
+  id: "",
+  currency: "USD",
+  item_count: 0,
+  subtotal_cents: 0,
+  items: [],
+  updated_at: new Date(0).toISOString(),
+  guest_token: guestToken,
+});
+
 export const getCatalogProducts = async (params: CatalogSearchParams = {}): Promise<CatalogListResponse> => {
   const normalized = normalizeSearchParams(params);
   try {
-    return await fetchJSON<CatalogListResponse>(`/catalog/products${toQueryString(normalized)}`);
+    return (await fetchJSON<CatalogListResponse>(`/catalog/products${toQueryString(normalized)}`)).payload;
   } catch {
     return fallbackSearch(normalized);
   }
@@ -110,7 +160,7 @@ export const getCatalogProducts = async (params: CatalogSearchParams = {}): Prom
 export const getCatalogCategories = async (): Promise<CatalogCategory[]> => {
   try {
     const response = await fetchJSON<CatalogCategoriesResponse>("/catalog/categories");
-    return response.items;
+    return response.payload.items;
   } catch {
     return fallbackCategories;
   }
@@ -118,7 +168,7 @@ export const getCatalogCategories = async (): Promise<CatalogCategory[]> => {
 
 export const getCatalogProductById = async (productID: string): Promise<CatalogProductDetailResponse | null> => {
   try {
-    return await fetchJSON<CatalogProductDetailResponse>(`/catalog/products/${productID}`);
+    return (await fetchJSON<CatalogProductDetailResponse>(`/catalog/products/${productID}`)).payload;
   } catch {
     const product = fallbackProducts.find((item) => item.id === productID);
     if (!product) {
@@ -134,4 +184,77 @@ export const getCatalogProductById = async (productID: string): Promise<CatalogP
         },
     };
   }
+};
+
+export const getCart = async (guestToken?: string): Promise<ApiCallResult<CartResponse>> => {
+  try {
+    const response = await fetchJSON<CartResponse>("/cart", { guestToken });
+    return {
+      payload: response.payload,
+      guestToken: response.guestToken,
+    };
+  } catch {
+    return {
+      payload: emptyCart(guestToken),
+      guestToken,
+    };
+  }
+};
+
+export const addCartItem = async (
+  input: { product_id: string; qty: number },
+  guestToken?: string,
+): Promise<ApiCallResult<CartResponse>> => {
+  const parsed = cartItemMutationSchema.parse(input);
+  return fetchJSON<CartResponse>("/cart/items", {
+    method: "POST",
+    body: parsed,
+    guestToken,
+  });
+};
+
+export const updateCartItem = async (
+  itemID: string,
+  input: { qty: number },
+  guestToken?: string,
+): Promise<ApiCallResult<CartResponse>> => {
+  const parsed = cartItemQtySchema.parse(input);
+  return fetchJSON<CartResponse>(`/cart/items/${itemID}`, {
+    method: "PATCH",
+    body: parsed,
+    guestToken,
+  });
+};
+
+export const deleteCartItem = async (itemID: string, guestToken?: string): Promise<ApiCallResult<CartResponse>> => {
+  return fetchJSON<CartResponse>(`/cart/items/${itemID}`, {
+    method: "DELETE",
+    guestToken,
+  });
+};
+
+export const getCheckoutQuote = async (guestToken?: string): Promise<ApiCallResult<CheckoutQuoteResponse>> => {
+  return fetchJSON<CheckoutQuoteResponse>("/checkout/quote", {
+    method: "POST",
+    body: {},
+    guestToken,
+  });
+};
+
+export const placeOrder = async (
+  input: { idempotency_key: string },
+  guestToken?: string,
+): Promise<ApiCallResult<OrderResponse>> => {
+  const parsed = checkoutPlaceOrderSchema.parse(input);
+  return fetchJSON<OrderResponse>("/checkout/place-order", {
+    method: "POST",
+    body: parsed,
+    guestToken,
+  });
+};
+
+export const getOrderByID = async (orderID: string, guestToken?: string): Promise<ApiCallResult<OrderResponse>> => {
+  return fetchJSON<OrderResponse>(`/orders/${orderID}`, {
+    guestToken,
+  });
 };

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
@@ -39,7 +40,27 @@ func mustRouter(t *testing.T) http.Handler {
 	return r
 }
 
+func mustRouterWithConfig(t *testing.T, cfg config.Config) http.Handler {
+	t.Helper()
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	return r
+}
+
 func requestJSON(t *testing.T, r http.Handler, method, path string, body interface{}, token string) *httptest.ResponseRecorder {
+	return requestJSONWithHeaders(t, r, method, path, body, token, nil)
+}
+
+func requestJSONWithHeaders(
+	t *testing.T,
+	r http.Handler,
+	method, path string,
+	body interface{},
+	token string,
+	headers map[string]string,
+) *httptest.ResponseRecorder {
 	t.Helper()
 
 	var payload []byte
@@ -57,6 +78,9 @@ func requestJSON(t *testing.T, r http.Handler, method, path string, body interfa
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
 	rr := httptest.NewRecorder()
@@ -233,5 +257,158 @@ func TestModerationWorkflowSkeleton(t *testing.T) {
 	}
 	if catalogBody.Total != 1 {
 		t.Fatalf("expected 1 catalog item, got %d", catalogBody.Total)
+	}
+}
+
+func TestCheckoutCreatesMultiShipmentAndIdempotentOrder(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	r := mustRouterWithConfig(t, cfg)
+
+	catalogRes := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products", nil, "")
+	if catalogRes.Code != http.StatusOK {
+		t.Fatalf("catalog status=%d body=%s", catalogRes.Code, catalogRes.Body.String())
+	}
+
+	var catalogPayload struct {
+		Items []struct {
+			ID       string `json:"id"`
+			VendorID string `json:"vendor_id"`
+			Price    int64  `json:"price_incl_tax_cents"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(catalogRes.Body.Bytes(), &catalogPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(catalogPayload.Items) < 2 {
+		t.Fatalf("expected seeded catalog items, got %d", len(catalogPayload.Items))
+	}
+
+	productByVendor := make(map[string]struct {
+		ID    string
+		Price int64
+	})
+	for _, item := range catalogPayload.Items {
+		if _, exists := productByVendor[item.VendorID]; !exists {
+			productByVendor[item.VendorID] = struct {
+				ID    string
+				Price int64
+			}{ID: item.ID, Price: item.Price}
+		}
+	}
+	if len(productByVendor) < 2 {
+		t.Fatalf("expected at least two vendors in seeded catalog, got %d", len(productByVendor))
+	}
+
+	vendorIDs := make([]string, 0, len(productByVendor))
+	for vendorID := range productByVendor {
+		vendorIDs = append(vendorIDs, vendorID)
+	}
+	sort.Strings(vendorIDs)
+
+	guestHeaders := map[string]string{guestTokenHeader: "gst_test_checkout_flow"}
+	selectedProducts := []struct {
+		ID    string
+		Price int64
+	}{
+		productByVendor[vendorIDs[0]],
+		productByVendor[vendorIDs[1]],
+	}
+
+	var expectedSubtotal int64
+	for _, selected := range selectedProducts {
+		addRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+			"product_id": selected.ID,
+			"qty":        1,
+		}, "", guestHeaders)
+		if addRes.Code != http.StatusOK {
+			t.Fatalf("add cart item status=%d body=%s", addRes.Code, addRes.Body.String())
+		}
+		expectedSubtotal += selected.Price
+	}
+
+	quoteRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/quote", map[string]interface{}{}, "", guestHeaders)
+	if quoteRes.Code != http.StatusOK {
+		t.Fatalf("quote status=%d body=%s", quoteRes.Code, quoteRes.Body.String())
+	}
+
+	var quotePayload struct {
+		ShipmentCount int32 `json:"shipment_count"`
+		SubtotalCents int64 `json:"subtotal_cents"`
+		ShippingCents int64 `json:"shipping_cents"`
+		TotalCents    int64 `json:"total_cents"`
+	}
+	if err := json.Unmarshal(quoteRes.Body.Bytes(), &quotePayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if quotePayload.ShipmentCount != 2 {
+		t.Fatalf("expected shipment_count=2, got %d", quotePayload.ShipmentCount)
+	}
+	if quotePayload.SubtotalCents != expectedSubtotal {
+		t.Fatalf("expected subtotal=%d, got %d", expectedSubtotal, quotePayload.SubtotalCents)
+	}
+	if quotePayload.ShippingCents != 1000 {
+		t.Fatalf("expected shipping=1000, got %d", quotePayload.ShippingCents)
+	}
+	if quotePayload.TotalCents != expectedSubtotal+1000 {
+		t.Fatalf("expected total=%d, got %d", expectedSubtotal+1000, quotePayload.TotalCents)
+	}
+
+	placeRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-test-order-1",
+	}, "", guestHeaders)
+	if placeRes.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", placeRes.Code, placeRes.Body.String())
+	}
+
+	var placePayload struct {
+		Order struct {
+			ID            string `json:"id"`
+			ShipmentCount int32  `json:"shipment_count"`
+			TotalCents    int64  `json:"total_cents"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(placeRes.Body.Bytes(), &placePayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if placePayload.Order.ShipmentCount != 2 {
+		t.Fatalf("expected order shipment_count=2, got %d", placePayload.Order.ShipmentCount)
+	}
+	if placePayload.Order.TotalCents != expectedSubtotal+1000 {
+		t.Fatalf("expected order total=%d, got %d", expectedSubtotal+1000, placePayload.Order.TotalCents)
+	}
+
+	retryRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-test-order-1",
+	}, "", guestHeaders)
+	if retryRes.Code != http.StatusCreated {
+		t.Fatalf("retry place order status=%d body=%s", retryRes.Code, retryRes.Body.String())
+	}
+
+	var retryPayload struct {
+		Order struct {
+			ID string `json:"id"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(retryRes.Body.Bytes(), &retryPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if retryPayload.Order.ID != placePayload.Order.ID {
+		t.Fatalf("expected idempotent order id %s, got %s", placePayload.Order.ID, retryPayload.Order.ID)
+	}
+
+	cartRes := requestJSONWithHeaders(t, r, http.MethodGet, "/api/v1/cart", nil, "", guestHeaders)
+	if cartRes.Code != http.StatusOK {
+		t.Fatalf("cart status=%d body=%s", cartRes.Code, cartRes.Body.String())
+	}
+
+	var cartPayload struct {
+		ItemCount int32 `json:"item_count"`
+	}
+	if err := json.Unmarshal(cartRes.Body.Bytes(), &cartPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if cartPayload.ItemCount != 0 {
+		t.Fatalf("expected empty cart after order placement, got item_count=%d", cartPayload.ItemCount)
 	}
 }
