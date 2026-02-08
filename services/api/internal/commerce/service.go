@@ -18,17 +18,26 @@ const (
 	OrderStatusPaid           = "paid"
 	OrderStatusPaymentFailed  = "payment_failed"
 	ShipmentStatusPending     = "pending"
+	ShipmentStatusPacked      = "packed"
+	ShipmentStatusShipped     = "shipped"
+	ShipmentStatusDelivered   = "delivered"
+	ShipmentStatusCancelled   = "cancelled"
 )
 
 var (
-	ErrInvalidActor      = errors.New("actor is required")
-	ErrInvalidProduct    = errors.New("product is invalid")
-	ErrInvalidQuantity   = errors.New("quantity must be positive")
-	ErrInsufficientStock = errors.New("insufficient stock")
-	ErrCartItemNotFound  = errors.New("cart item not found")
-	ErrCartEmpty         = errors.New("cart is empty")
-	ErrCurrencyMismatch  = errors.New("currency mismatch in cart")
-	ErrIdempotencyKey    = errors.New("idempotency key is required")
+	ErrInvalidActor          = errors.New("actor is required")
+	ErrInvalidVendor         = errors.New("vendor is required")
+	ErrInvalidProduct        = errors.New("product is invalid")
+	ErrInvalidQuantity       = errors.New("quantity must be positive")
+	ErrInsufficientStock     = errors.New("insufficient stock")
+	ErrCartItemNotFound      = errors.New("cart item not found")
+	ErrCartEmpty             = errors.New("cart is empty")
+	ErrCurrencyMismatch      = errors.New("currency mismatch in cart")
+	ErrIdempotencyKey        = errors.New("idempotency key is required")
+	ErrShipmentNotFound      = errors.New("shipment not found")
+	ErrShipmentForbidden     = errors.New("shipment access forbidden")
+	ErrInvalidShipmentStatus = errors.New("shipment status is invalid")
+	ErrShipmentTransition    = errors.New("shipment status transition is invalid")
 )
 
 // Actor represents the buyer context for cart and checkout operations.
@@ -108,13 +117,16 @@ type CheckoutQuote struct {
 
 // OrderShipment is the shipment representation on placed orders.
 type OrderShipment struct {
-	ID               string `json:"id"`
-	VendorID         string `json:"vendor_id"`
-	Status           string `json:"status"`
-	ItemCount        int32  `json:"item_count"`
-	SubtotalCents    int64  `json:"subtotal_cents"`
-	ShippingFeeCents int64  `json:"shipping_fee_cents"`
-	TotalCents       int64  `json:"total_cents"`
+	ID               string     `json:"id"`
+	VendorID         string     `json:"vendor_id"`
+	Status           string     `json:"status"`
+	ItemCount        int32      `json:"item_count"`
+	SubtotalCents    int64      `json:"subtotal_cents"`
+	ShippingFeeCents int64      `json:"shipping_fee_cents"`
+	TotalCents       int64      `json:"total_cents"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	ShippedAt        *time.Time `json:"shipped_at,omitempty"`
+	DeliveredAt      *time.Time `json:"delivered_at,omitempty"`
 }
 
 // OrderItem is an immutable order line snapshot.
@@ -150,6 +162,34 @@ type Order struct {
 	CreatedAt      time.Time       `json:"created_at"`
 }
 
+// ShipmentStatusEvent is an auditable timeline event for shipment progression.
+type ShipmentStatusEvent struct {
+	ShipmentID  string    `json:"shipment_id"`
+	VendorID    string    `json:"vendor_id"`
+	Status      string    `json:"status"`
+	ActorUserID string    `json:"actor_user_id,omitempty"`
+	At          time.Time `json:"at"`
+}
+
+// VendorShipment returns the vendor-centric view of a shipment and its item timeline.
+type VendorShipment struct {
+	ID               string                `json:"id"`
+	OrderID          string                `json:"order_id"`
+	VendorID         string                `json:"vendor_id"`
+	Status           string                `json:"status"`
+	ItemCount        int32                 `json:"item_count"`
+	SubtotalCents    int64                 `json:"subtotal_cents"`
+	ShippingFeeCents int64                 `json:"shipping_fee_cents"`
+	TotalCents       int64                 `json:"total_cents"`
+	Currency         string                `json:"currency"`
+	Items            []OrderItem           `json:"items"`
+	CreatedAt        time.Time             `json:"created_at"`
+	UpdatedAt        time.Time             `json:"updated_at"`
+	ShippedAt        *time.Time            `json:"shipped_at,omitempty"`
+	DeliveredAt      *time.Time            `json:"delivered_at,omitempty"`
+	Timeline         []ShipmentStatusEvent `json:"timeline"`
+}
+
 type cartState struct {
 	id         string
 	currency   string
@@ -166,6 +206,8 @@ type Service struct {
 	cartsByActorKey       map[string]*cartState
 	ordersByID            map[string]Order
 	idempotencyToOrderKey map[string]string
+	shipmentOrderIndex    map[string]string
+	shipmentEventsByID    map[string][]ShipmentStatusEvent
 }
 
 func NewService(shippingFeeCents int64) *Service {
@@ -179,6 +221,8 @@ func NewService(shippingFeeCents int64) *Service {
 		cartsByActorKey:       make(map[string]*cartState),
 		ordersByID:            make(map[string]Order),
 		idempotencyToOrderKey: make(map[string]string),
+		shipmentOrderIndex:    make(map[string]string),
+		shipmentEventsByID:    make(map[string][]ShipmentStatusEvent),
 	}
 }
 
@@ -348,6 +392,7 @@ func (s *Service) PlaceOrder(actor Actor, idempotencyKey string) (Order, error) 
 		return Order{}, err
 	}
 
+	now := time.Now().UTC()
 	shipmentIDByVendor := make(map[string]string, len(quote.Shipments))
 	shipments := make([]OrderShipment, 0, len(quote.Shipments))
 	for _, shipment := range quote.Shipments {
@@ -361,6 +406,7 @@ func (s *Service) PlaceOrder(actor Actor, idempotencyKey string) (Order, error) 
 			SubtotalCents:    shipment.SubtotalCents,
 			ShippingFeeCents: shipment.ShippingFeeCents,
 			TotalCents:       shipment.TotalCents,
+			UpdatedAt:        now,
 		})
 	}
 
@@ -383,7 +429,6 @@ func (s *Service) PlaceOrder(actor Actor, idempotencyKey string) (Order, error) 
 		})
 	}
 
-	now := time.Now().UTC()
 	order := Order{
 		ID:             identifier.New("ord"),
 		BuyerUserID:    strings.TrimSpace(actor.BuyerUserID),
@@ -405,6 +450,17 @@ func (s *Service) PlaceOrder(actor Actor, idempotencyKey string) (Order, error) 
 
 	s.ordersByID[order.ID] = order
 	s.idempotencyToOrderKey[requestKey] = order.ID
+	for _, shipment := range order.Shipments {
+		s.shipmentOrderIndex[shipment.ID] = order.ID
+		s.shipmentEventsByID[shipment.ID] = []ShipmentStatusEvent{
+			{
+				ShipmentID: shipment.ID,
+				VendorID:   shipment.VendorID,
+				Status:     shipment.Status,
+				At:         now,
+			},
+		}
+	}
 
 	state.items = make(map[string]CartItem)
 	state.byProduct = make(map[string]string)
@@ -440,6 +496,145 @@ func (s *Service) GetOrder(actor Actor, orderID string) (Order, bool, error) {
 	return order, true, nil
 }
 
+// ListVendorShipments returns all shipments that belong to a vendor owner context.
+func (s *Service) ListVendorShipments(vendorID string) ([]VendorShipment, error) {
+	normalizedVendorID := strings.TrimSpace(vendorID)
+	if normalizedVendorID == "" {
+		return nil, ErrInvalidVendor
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	shipments := make([]VendorShipment, 0)
+	for _, order := range s.ordersByID {
+		for _, shipment := range order.Shipments {
+			if shipment.VendorID != normalizedVendorID {
+				continue
+			}
+			shipments = append(shipments, s.buildVendorShipmentLocked(order, shipment))
+		}
+	}
+
+	sort.Slice(shipments, func(i, j int) bool {
+		if shipments[i].UpdatedAt.Equal(shipments[j].UpdatedAt) {
+			return shipments[i].ID < shipments[j].ID
+		}
+		return shipments[i].UpdatedAt.After(shipments[j].UpdatedAt)
+	})
+
+	return shipments, nil
+}
+
+// GetVendorShipment fetches one shipment by vendor scope and shipment id.
+func (s *Service) GetVendorShipment(vendorID, shipmentID string) (VendorShipment, bool, error) {
+	normalizedVendorID := strings.TrimSpace(vendorID)
+	if normalizedVendorID == "" {
+		return VendorShipment{}, false, ErrInvalidVendor
+	}
+	normalizedShipmentID := strings.TrimSpace(shipmentID)
+	if normalizedShipmentID == "" {
+		return VendorShipment{}, false, ErrShipmentNotFound
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	shipmentOrderID, exists := s.shipmentOrderIndex[normalizedShipmentID]
+	if !exists {
+		return VendorShipment{}, false, nil
+	}
+	order, exists := s.ordersByID[shipmentOrderID]
+	if !exists {
+		return VendorShipment{}, false, nil
+	}
+
+	for _, shipment := range order.Shipments {
+		if shipment.ID != normalizedShipmentID {
+			continue
+		}
+		if shipment.VendorID != normalizedVendorID {
+			return VendorShipment{}, false, ErrShipmentForbidden
+		}
+		return s.buildVendorShipmentLocked(order, shipment), true, nil
+	}
+
+	return VendorShipment{}, false, nil
+}
+
+// UpdateVendorShipmentStatus advances shipment status using a strict state machine.
+func (s *Service) UpdateVendorShipmentStatus(vendorID, shipmentID, nextStatus, actorUserID string) (VendorShipment, error) {
+	normalizedVendorID := strings.TrimSpace(vendorID)
+	if normalizedVendorID == "" {
+		return VendorShipment{}, ErrInvalidVendor
+	}
+	normalizedShipmentID := strings.TrimSpace(shipmentID)
+	if normalizedShipmentID == "" {
+		return VendorShipment{}, ErrShipmentNotFound
+	}
+	targetStatus := normalizeShipmentStatus(nextStatus)
+	if !isValidShipmentStatus(targetStatus) {
+		return VendorShipment{}, ErrInvalidShipmentStatus
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	shipmentOrderID, exists := s.shipmentOrderIndex[normalizedShipmentID]
+	if !exists {
+		return VendorShipment{}, ErrShipmentNotFound
+	}
+	order, exists := s.ordersByID[shipmentOrderID]
+	if !exists {
+		return VendorShipment{}, ErrShipmentNotFound
+	}
+
+	shipmentIndex := -1
+	for i, shipment := range order.Shipments {
+		if shipment.ID == normalizedShipmentID {
+			shipmentIndex = i
+			break
+		}
+	}
+	if shipmentIndex < 0 {
+		return VendorShipment{}, ErrShipmentNotFound
+	}
+
+	shipment := order.Shipments[shipmentIndex]
+	if shipment.VendorID != normalizedVendorID {
+		return VendorShipment{}, ErrShipmentForbidden
+	}
+	if shipment.Status == targetStatus {
+		return s.buildVendorShipmentLocked(order, shipment), nil
+	}
+	if !canTransitionShipmentStatus(shipment.Status, targetStatus) {
+		return VendorShipment{}, ErrShipmentTransition
+	}
+
+	now := time.Now().UTC()
+	shipment.Status = targetStatus
+	shipment.UpdatedAt = now
+	if targetStatus == ShipmentStatusShipped {
+		shippedAt := now
+		shipment.ShippedAt = &shippedAt
+	}
+	if targetStatus == ShipmentStatusDelivered {
+		deliveredAt := now
+		shipment.DeliveredAt = &deliveredAt
+	}
+	order.Shipments[shipmentIndex] = shipment
+	s.ordersByID[order.ID] = order
+	s.shipmentEventsByID[shipment.ID] = append(s.shipmentEventsByID[shipment.ID], ShipmentStatusEvent{
+		ShipmentID:  shipment.ID,
+		VendorID:    shipment.VendorID,
+		Status:      shipment.Status,
+		ActorUserID: strings.TrimSpace(actorUserID),
+		At:          now,
+	})
+
+	return s.buildVendorShipmentLocked(order, shipment), nil
+}
+
 func (s *Service) MarkOrderPaid(orderID string) (Order, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -454,6 +649,80 @@ func (s *Service) MarkOrderPaid(orderID string) (Order, bool) {
 	}
 
 	return order, true
+}
+
+func (s *Service) buildVendorShipmentLocked(order Order, shipment OrderShipment) VendorShipment {
+	items := make([]OrderItem, 0, shipment.ItemCount)
+	for _, item := range order.Items {
+		if item.ShipmentID != shipment.ID {
+			continue
+		}
+		items = append(items, item)
+	}
+
+	timeline := append([]ShipmentStatusEvent(nil), s.shipmentEventsByID[shipment.ID]...)
+
+	return VendorShipment{
+		ID:               shipment.ID,
+		OrderID:          order.ID,
+		VendorID:         shipment.VendorID,
+		Status:           shipment.Status,
+		ItemCount:        shipment.ItemCount,
+		SubtotalCents:    shipment.SubtotalCents,
+		ShippingFeeCents: shipment.ShippingFeeCents,
+		TotalCents:       shipment.TotalCents,
+		Currency:         order.Currency,
+		Items:            items,
+		CreatedAt:        order.CreatedAt,
+		UpdatedAt:        shipment.UpdatedAt,
+		ShippedAt:        shipment.ShippedAt,
+		DeliveredAt:      shipment.DeliveredAt,
+		Timeline:         timeline,
+	}
+}
+
+func normalizeShipmentStatus(status string) string {
+	return strings.ToLower(strings.TrimSpace(status))
+}
+
+func isValidShipmentStatus(status string) bool {
+	switch normalizeShipmentStatus(status) {
+	case ShipmentStatusPending, ShipmentStatusPacked, ShipmentStatusShipped, ShipmentStatusDelivered, ShipmentStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
+func canTransitionShipmentStatus(current, next string) bool {
+	normalizedCurrent := normalizeShipmentStatus(current)
+	normalizedNext := normalizeShipmentStatus(next)
+	if normalizedCurrent == normalizedNext {
+		return true
+	}
+
+	allowed := map[string]map[string]bool{
+		ShipmentStatusPending: {
+			ShipmentStatusPacked:    true,
+			ShipmentStatusShipped:   true,
+			ShipmentStatusCancelled: true,
+		},
+		ShipmentStatusPacked: {
+			ShipmentStatusShipped:   true,
+			ShipmentStatusCancelled: true,
+		},
+		ShipmentStatusShipped: {
+			ShipmentStatusDelivered: true,
+		},
+		ShipmentStatusDelivered: {},
+		ShipmentStatusCancelled: {},
+	}
+
+	transitions, exists := allowed[normalizedCurrent]
+	if !exists {
+		return false
+	}
+	return transitions[normalizedNext]
 }
 
 func (s *Service) MarkOrderCODConfirmed(orderID string) (Order, bool) {

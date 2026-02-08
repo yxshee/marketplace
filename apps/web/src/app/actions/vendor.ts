@@ -14,6 +14,7 @@ import {
   submitVendorProductModeration,
   updateVendorCoupon,
   updateVendorProduct,
+  updateVendorShipmentStatus,
 } from "@/lib/api-client";
 
 const vendorTokenCookieName = "mkt_vendor_access_token";
@@ -247,6 +248,31 @@ export async function vendorDeleteCouponAction(formData: FormData): Promise<neve
   }
 
   redirect("/vendor?notice=vendor-coupon-deleted");
+}
+
+export async function vendorUpdateShipmentStatusAction(formData: FormData): Promise<never> {
+  const accessToken = await requireVendorToken();
+  const shipmentID = String(formData.get("shipment_id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim();
+
+  if (!shipmentID) {
+    redirect("/vendor?error=vendor-shipment-missing");
+  }
+
+  try {
+    await updateVendorShipmentStatus(
+      shipmentID,
+      {
+        status: status as "pending" | "packed" | "shipped" | "delivered" | "cancelled",
+      },
+      accessToken,
+    );
+    revalidatePath("/vendor");
+  } catch {
+    redirect("/vendor?error=vendor-shipment-update-failed");
+  }
+
+  redirect("/vendor?notice=vendor-shipment-updated");
 }
 
 export async function vendorLogoutAction(): Promise<never> {
