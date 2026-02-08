@@ -1,4 +1,4 @@
-.PHONY: run test lint build tidy
+.PHONY: run test lint build tidy sqlc-generate migrate-up migrate-down
 
 run:
 	go run ./cmd/server
@@ -14,3 +14,12 @@ build:
 
 tidy:
 	go mod tidy
+
+sqlc-generate:
+	sqlc generate
+
+migrate-up:
+	migrate -path migrations -database "$(DATABASE_URL)" up
+
+migrate-down:
+	migrate -path migrations -database "$(DATABASE_URL)" down 1

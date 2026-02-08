@@ -10,7 +10,10 @@ import (
 
 func main() {
 	cfg := config.Load()
-	r := router.New(cfg)
+	r, err := router.New(cfg)
+	if err != nil {
+		log.Fatalf("router initialization failed: %v", err)
+	}
 
 	addr := ":" + cfg.Port
 	log.Printf("api listening on %s", addr)
