@@ -385,6 +385,165 @@ func TestModerationWorkflowSkeleton(t *testing.T) {
 	}
 }
 
+func TestVendorProductsAndCouponsCRUD(t *testing.T) {
+	r := mustRouter(t)
+
+	owner := registerUser(t, r, "vendor-products-owner@example.com")
+	admin := registerUser(t, r, "admin@example.com")
+	moderator := registerUser(t, r, "moderator@example.com")
+	buyer := registerUser(t, r, "buyer-products@example.com")
+
+	vendorCreated := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "vendor-products",
+		"display_name": "Vendor Products",
+	}, owner.AccessToken)
+	if vendorCreated.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", vendorCreated.Code, vendorCreated.Body.String())
+	}
+
+	var vendorBody struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(vendorCreated.Body.Bytes(), &vendorBody); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	verified := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/vendors/"+vendorBody.ID+"/verification", map[string]string{
+		"state":  "verified",
+		"reason": "kyc complete",
+	}, admin.AccessToken)
+	if verified.Code != http.StatusOK {
+		t.Fatalf("admin verify vendor status=%d body=%s", verified.Code, verified.Body.String())
+	}
+
+	ownerLogin := loginUser(t, r, "vendor-products-owner@example.com")
+
+	createdProduct := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products", map[string]interface{}{
+		"title":                "Field Notebook",
+		"description":          "Rugged paper notebook",
+		"category_slug":        "stationery",
+		"tags":                 []string{"paper", "field"},
+		"price_incl_tax_cents": 2899,
+		"currency":             "USD",
+		"stock_qty":            12,
+	}, ownerLogin.AccessToken)
+	if createdProduct.Code != http.StatusCreated {
+		t.Fatalf("create product status=%d body=%s", createdProduct.Code, createdProduct.Body.String())
+	}
+
+	var product struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(createdProduct.Body.Bytes(), &product); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if product.Status != "draft" {
+		t.Fatalf("expected draft product status, got %s", product.Status)
+	}
+
+	listProducts := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/products", nil, ownerLogin.AccessToken)
+	if listProducts.Code != http.StatusOK {
+		t.Fatalf("list products status=%d body=%s", listProducts.Code, listProducts.Body.String())
+	}
+	var productListPayload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(listProducts.Body.Bytes(), &productListPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if productListPayload.Total != 1 {
+		t.Fatalf("expected one vendor product, got %d", productListPayload.Total)
+	}
+
+	updatedProduct := requestJSON(t, r, http.MethodPatch, "/api/v1/vendor/products/"+product.ID, map[string]interface{}{
+		"title":                "Field Notebook Pro",
+		"price_incl_tax_cents": 3499,
+	}, ownerLogin.AccessToken)
+	if updatedProduct.Code != http.StatusOK {
+		t.Fatalf("update product status=%d body=%s", updatedProduct.Code, updatedProduct.Body.String())
+	}
+
+	submitted := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products/"+product.ID+"/submit-moderation", map[string]string{}, ownerLogin.AccessToken)
+	if submitted.Code != http.StatusOK {
+		t.Fatalf("submit moderation status=%d body=%s", submitted.Code, submitted.Body.String())
+	}
+
+	approved := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/moderation/products/"+product.ID, map[string]string{
+		"decision": "approve",
+	}, moderator.AccessToken)
+	if approved.Code != http.StatusOK {
+		t.Fatalf("approve moderation status=%d body=%s", approved.Code, approved.Body.String())
+	}
+
+	revisedApproved := requestJSON(t, r, http.MethodPatch, "/api/v1/vendor/products/"+product.ID, map[string]interface{}{
+		"price_incl_tax_cents": 3799,
+	}, ownerLogin.AccessToken)
+	if revisedApproved.Code != http.StatusOK {
+		t.Fatalf("revise approved product status=%d body=%s", revisedApproved.Code, revisedApproved.Body.String())
+	}
+	var revisedProduct struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(revisedApproved.Body.Bytes(), &revisedProduct); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if revisedProduct.Status != "draft" {
+		t.Fatalf("expected approved edits to move product back to draft, got %s", revisedProduct.Status)
+	}
+
+	deleteProduct := requestJSON(t, r, http.MethodDelete, "/api/v1/vendor/products/"+product.ID, nil, ownerLogin.AccessToken)
+	if deleteProduct.Code != http.StatusNoContent {
+		t.Fatalf("delete product status=%d body=%s", deleteProduct.Code, deleteProduct.Body.String())
+	}
+
+	createCoupon := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/coupons", map[string]interface{}{
+		"code":           "save10",
+		"discount_type":  "percent",
+		"discount_value": 10,
+	}, ownerLogin.AccessToken)
+	if createCoupon.Code != http.StatusCreated {
+		t.Fatalf("create coupon status=%d body=%s", createCoupon.Code, createCoupon.Body.String())
+	}
+	var coupon struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(createCoupon.Body.Bytes(), &coupon); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	listCoupons := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/coupons", nil, ownerLogin.AccessToken)
+	if listCoupons.Code != http.StatusOK {
+		t.Fatalf("list coupons status=%d body=%s", listCoupons.Code, listCoupons.Body.String())
+	}
+	var couponsPayload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(listCoupons.Body.Bytes(), &couponsPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if couponsPayload.Total != 1 {
+		t.Fatalf("expected one coupon, got %d", couponsPayload.Total)
+	}
+
+	updateCoupon := requestJSON(t, r, http.MethodPatch, "/api/v1/vendor/coupons/"+coupon.ID, map[string]interface{}{
+		"active": false,
+	}, ownerLogin.AccessToken)
+	if updateCoupon.Code != http.StatusOK {
+		t.Fatalf("update coupon status=%d body=%s", updateCoupon.Code, updateCoupon.Body.String())
+	}
+
+	deleteCoupon := requestJSON(t, r, http.MethodDelete, "/api/v1/vendor/coupons/"+coupon.ID, nil, ownerLogin.AccessToken)
+	if deleteCoupon.Code != http.StatusNoContent {
+		t.Fatalf("delete coupon status=%d body=%s", deleteCoupon.Code, deleteCoupon.Body.String())
+	}
+
+	couponForbidden := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/coupons", nil, buyer.AccessToken)
+	if couponForbidden.Code != http.StatusForbidden {
+		t.Fatalf("expected buyer to be forbidden for vendor coupons, got status=%d body=%s", couponForbidden.Code, couponForbidden.Body.String())
+	}
+}
+
 func TestCheckoutCreatesMultiShipmentAndIdempotentOrder(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"

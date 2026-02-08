@@ -13,10 +13,23 @@ import (
 )
 
 type vendorCreateProductRequest struct {
-	Title             string `json:"title"`
-	Description       string `json:"description"`
-	PriceInclTaxCents int64  `json:"price_incl_tax_cents"`
-	Currency          string `json:"currency"`
+	CategorySlug      string   `json:"category_slug"`
+	Tags              []string `json:"tags"`
+	StockQty          int32    `json:"stock_qty"`
+	Title             string   `json:"title"`
+	Description       string   `json:"description"`
+	PriceInclTaxCents int64    `json:"price_incl_tax_cents"`
+	Currency          string   `json:"currency"`
+}
+
+type vendorUpdateProductRequest struct {
+	CategorySlug      *string   `json:"category_slug"`
+	Tags              *[]string `json:"tags"`
+	StockQty          *int32    `json:"stock_qty"`
+	Title             *string   `json:"title"`
+	Description       *string   `json:"description"`
+	PriceInclTaxCents *int64    `json:"price_incl_tax_cents"`
+	Currency          *string   `json:"currency"`
 }
 
 type adminModerationRequest struct {
@@ -54,33 +67,124 @@ func (a *api) handleVendorCreateProduct(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "title, currency and positive price are required")
 		return
 	}
+	if req.StockQty < 0 {
+		writeError(w, http.StatusBadRequest, "stock qty must be zero or positive")
+		return
+	}
 
-	product := a.catalogService.CreateProduct(
-		identity.UserID,
-		registeredVendor.ID,
-		req.Title,
-		req.Description,
-		req.Currency,
-		req.PriceInclTaxCents,
-	)
+	product := a.catalogService.CreateProductWithInput(catalog.CreateProductInput{
+		OwnerUserID:       identity.UserID,
+		VendorID:          registeredVendor.ID,
+		Title:             req.Title,
+		Description:       req.Description,
+		CategorySlug:      req.CategorySlug,
+		Tags:              req.Tags,
+		PriceInclTaxCents: req.PriceInclTaxCents,
+		Currency:          req.Currency,
+		StockQty:          req.StockQty,
+		Status:            catalog.ProductStatusDraft,
+	})
 
 	writeJSON(w, http.StatusCreated, product)
 }
 
-func (a *api) handleVendorSubmitModeration(w http.ResponseWriter, r *http.Request) {
-	identity, ok := auth.IdentityFromContext(r.Context())
+func (a *api) handleVendorListProducts(w http.ResponseWriter, r *http.Request) {
+	identity, registeredVendor, ok := a.vendorOwnerContext(w, r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-	if identity.VendorID == nil {
-		writeError(w, http.StatusBadRequest, "vendor profile required")
 		return
 	}
 
-	registeredVendor, exists := a.vendorService.GetByID(*identity.VendorID)
-	if !exists {
-		writeError(w, http.StatusNotFound, "vendor not found")
+	items := a.catalogService.ListVendorProducts(identity.UserID, registeredVendor.ID)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"items": items,
+		"total": len(items),
+	})
+}
+
+func (a *api) handleVendorUpdateProduct(w http.ResponseWriter, r *http.Request) {
+	identity, registeredVendor, ok := a.vendorOwnerContext(w, r)
+	if !ok {
+		return
+	}
+
+	productID := chi.URLParam(r, "productID")
+	if productID == "" {
+		writeError(w, http.StatusBadRequest, "product id is required")
+		return
+	}
+
+	var req vendorUpdateProductRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.CategorySlug == nil &&
+		req.Tags == nil &&
+		req.StockQty == nil &&
+		req.Title == nil &&
+		req.Description == nil &&
+		req.PriceInclTaxCents == nil &&
+		req.Currency == nil {
+		writeError(w, http.StatusBadRequest, "at least one field is required")
+		return
+	}
+
+	updated, err := a.catalogService.UpdateProduct(productID, identity.UserID, registeredVendor.ID, catalog.UpdateProductInput{
+		CategorySlug:      req.CategorySlug,
+		Tags:              req.Tags,
+		StockQty:          req.StockQty,
+		Title:             req.Title,
+		Description:       req.Description,
+		PriceInclTaxCents: req.PriceInclTaxCents,
+		Currency:          req.Currency,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, catalog.ErrProductNotFound):
+			writeError(w, http.StatusNotFound, "product not found")
+		case errors.Is(err, catalog.ErrUnauthorizedProductAccess):
+			writeError(w, http.StatusForbidden, "forbidden")
+		case errors.Is(err, catalog.ErrInvalidProductInput):
+			writeError(w, http.StatusBadRequest, "invalid product payload")
+		default:
+			writeError(w, http.StatusBadRequest, "unable to update product")
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) handleVendorDeleteProduct(w http.ResponseWriter, r *http.Request) {
+	identity, registeredVendor, ok := a.vendorOwnerContext(w, r)
+	if !ok {
+		return
+	}
+
+	productID := chi.URLParam(r, "productID")
+	if productID == "" {
+		writeError(w, http.StatusBadRequest, "product id is required")
+		return
+	}
+
+	if err := a.catalogService.DeleteProduct(productID, identity.UserID, registeredVendor.ID); err != nil {
+		switch {
+		case errors.Is(err, catalog.ErrProductNotFound):
+			writeError(w, http.StatusNotFound, "product not found")
+		case errors.Is(err, catalog.ErrUnauthorizedProductAccess):
+			writeError(w, http.StatusForbidden, "forbidden")
+		default:
+			writeError(w, http.StatusBadRequest, "unable to delete product")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) handleVendorSubmitModeration(w http.ResponseWriter, r *http.Request) {
+	identity, registeredVendor, ok := a.vendorOwnerContext(w, r)
+	if !ok {
 		return
 	}
 	if registeredVendor.VerificationState != vendors.VerificationVerified {
@@ -105,6 +209,30 @@ func (a *api) handleVendorSubmitModeration(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, http.StatusOK, updatedProduct)
+}
+
+func (a *api) vendorOwnerContext(w http.ResponseWriter, r *http.Request) (auth.Identity, vendors.Vendor, bool) {
+	identity, ok := auth.IdentityFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return auth.Identity{}, vendors.Vendor{}, false
+	}
+	if identity.VendorID == nil {
+		writeError(w, http.StatusBadRequest, "vendor profile required")
+		return auth.Identity{}, vendors.Vendor{}, false
+	}
+
+	registeredVendor, exists := a.vendorService.GetByID(*identity.VendorID)
+	if !exists {
+		writeError(w, http.StatusNotFound, "vendor not found")
+		return auth.Identity{}, vendors.Vendor{}, false
+	}
+	if registeredVendor.OwnerUserID != identity.UserID {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return auth.Identity{}, vendors.Vendor{}, false
+	}
+
+	return identity, registeredVendor, true
 }
 
 func (a *api) handleAdminModerateProduct(w http.ResponseWriter, r *http.Request) {

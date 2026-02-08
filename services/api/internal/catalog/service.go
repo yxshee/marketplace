@@ -41,6 +41,7 @@ var (
 	ErrUnauthorizedProductAccess = errors.New("unauthorized product access")
 	ErrInvalidStatusTransition   = errors.New("invalid status transition")
 	ErrInvalidModerationDecision = errors.New("invalid moderation decision")
+	ErrInvalidProductInput       = errors.New("invalid product input")
 )
 
 // Category is a discoverable category in the buyer catalog.
@@ -97,6 +98,16 @@ type SearchParams struct {
 type SearchResult struct {
 	Items []Product
 	Total int
+}
+
+type UpdateProductInput struct {
+	Title             *string
+	Description       *string
+	CategorySlug      *string
+	Tags              *[]string
+	PriceInclTaxCents *int64
+	Currency          *string
+	StockQty          *int32
 }
 
 // Service provides product and moderation workflow operations.
@@ -173,7 +184,7 @@ func (s *Service) CreateProductWithInput(input CreateProductInput) Product {
 		Title:             strings.TrimSpace(input.Title),
 		Description:       strings.TrimSpace(input.Description),
 		CategorySlug:      category,
-		Tags:              append([]string{}, input.Tags...),
+		Tags:              normalizeTags(input.Tags),
 		PriceInclTaxCents: input.PriceInclTaxCents,
 		Currency:          strings.ToUpper(strings.TrimSpace(input.Currency)),
 		StockQty:          input.StockQty,
@@ -200,6 +211,129 @@ func (s *Service) GetProductByID(productID string) (Product, bool) {
 	defer s.mu.RUnlock()
 	product, exists := s.byID[productID]
 	return product, exists
+}
+
+func (s *Service) ListVendorProducts(ownerUserID, vendorID string) []Product {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]Product, 0)
+	for i := len(s.ordered) - 1; i >= 0; i-- {
+		product := s.byID[s.ordered[i]]
+		if product.OwnerUserID == ownerUserID && product.VendorID == vendorID {
+			items = append(items, product)
+		}
+	}
+	return items
+}
+
+func (s *Service) UpdateProduct(productID, ownerUserID, vendorID string, input UpdateProductInput) (Product, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	product, exists := s.byID[productID]
+	if !exists {
+		return Product{}, ErrProductNotFound
+	}
+	if product.OwnerUserID != ownerUserID || product.VendorID != vendorID {
+		return Product{}, ErrUnauthorizedProductAccess
+	}
+
+	contentChanged := false
+
+	if input.Title != nil {
+		title := strings.TrimSpace(*input.Title)
+		if title == "" {
+			return Product{}, ErrInvalidProductInput
+		}
+		if title != product.Title {
+			product.Title = title
+			contentChanged = true
+		}
+	}
+	if input.Description != nil {
+		description := strings.TrimSpace(*input.Description)
+		if description != product.Description {
+			product.Description = description
+			contentChanged = true
+		}
+	}
+	if input.CategorySlug != nil {
+		category := strings.ToLower(strings.TrimSpace(*input.CategorySlug))
+		if category == "" {
+			return Product{}, ErrInvalidProductInput
+		}
+		if category != product.CategorySlug {
+			product.CategorySlug = category
+			s.categories[category] = Category{Slug: category, Name: categoryDisplayName(category)}
+			if !containsString(s.categoryOrder, category) {
+				s.categoryOrder = append(s.categoryOrder, category)
+			}
+			contentChanged = true
+		}
+	}
+	if input.Tags != nil {
+		nextTags := normalizeTags(*input.Tags)
+		product.Tags = nextTags
+		contentChanged = true
+	}
+	if input.PriceInclTaxCents != nil {
+		if *input.PriceInclTaxCents <= 0 {
+			return Product{}, ErrInvalidProductInput
+		}
+		if *input.PriceInclTaxCents != product.PriceInclTaxCents {
+			product.PriceInclTaxCents = *input.PriceInclTaxCents
+			contentChanged = true
+		}
+	}
+	if input.Currency != nil {
+		currency := strings.ToUpper(strings.TrimSpace(*input.Currency))
+		if currency == "" {
+			return Product{}, ErrInvalidProductInput
+		}
+		if currency != product.Currency {
+			product.Currency = currency
+			contentChanged = true
+		}
+	}
+	if input.StockQty != nil {
+		if *input.StockQty < 0 {
+			return Product{}, ErrInvalidProductInput
+		}
+		product.StockQty = *input.StockQty
+	}
+
+	if contentChanged && product.Status == ProductStatusApproved {
+		product.Status = ProductStatusDraft
+		product.ModerationReason = ""
+	}
+	product.UpdatedAt = time.Now().UTC()
+	s.byID[productID] = product
+
+	return product, nil
+}
+
+func (s *Service) DeleteProduct(productID, ownerUserID, vendorID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	product, exists := s.byID[productID]
+	if !exists {
+		return ErrProductNotFound
+	}
+	if product.OwnerUserID != ownerUserID || product.VendorID != vendorID {
+		return ErrUnauthorizedProductAccess
+	}
+
+	delete(s.byID, productID)
+	filtered := s.ordered[:0]
+	for _, id := range s.ordered {
+		if id != productID {
+			filtered = append(filtered, id)
+		}
+	}
+	s.ordered = filtered
+	return nil
 }
 
 func (s *Service) SubmitForModeration(productID, ownerUserID, vendorID string) (Product, error) {
@@ -413,4 +547,30 @@ func categoryDisplayName(slug string) string {
 		parts[i] = strings.ToUpper(part[:1]) + part[1:]
 	}
 	return strings.Join(parts, " ")
+}
+
+func normalizeTags(raw []string) []string {
+	tags := make([]string, 0, len(raw))
+	seen := make(map[string]struct{})
+	for _, value := range raw {
+		trimmed := strings.TrimSpace(strings.ToLower(value))
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		tags = append(tags, trimmed)
+	}
+	return tags
+}
+
+func containsString(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }

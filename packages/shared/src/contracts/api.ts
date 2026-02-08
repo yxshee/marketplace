@@ -31,6 +31,48 @@ export interface VendorProfile {
   updated_at: string;
 }
 
+export interface VendorProduct {
+  id: string;
+  vendor_id: string;
+  owner_user_id: string;
+  title: string;
+  description: string;
+  category_slug: string;
+  tags: string[];
+  price_incl_tax_cents: number;
+  currency: string;
+  stock_qty: number;
+  rating_average: number;
+  status: "draft" | "pending_approval" | "approved" | "rejected";
+  moderation_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VendorProductListResponse {
+  items: VendorProduct[];
+  total: number;
+}
+
+export interface VendorCoupon {
+  id: string;
+  vendor_id: string;
+  code: string;
+  discount_type: "percent" | "amount_cents";
+  discount_value: number;
+  starts_at?: string;
+  ends_at?: string;
+  usage_limit?: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VendorCouponListResponse {
+  items: VendorCoupon[];
+  total: number;
+}
+
 export interface HealthResponse {
   status: "ok";
   service: string;

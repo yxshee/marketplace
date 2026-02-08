@@ -12,6 +12,7 @@ import (
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/coupons"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/invoices"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/payments"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
@@ -28,6 +29,7 @@ type api struct {
 	tokenManager   *auth.TokenManager
 	vendorService  *vendors.Service
 	catalogService *catalog.Service
+	coupons        *coupons.Service
 	commerce       *commerce.Service
 	invoices       *invoices.Service
 	payments       *payments.Service
@@ -68,6 +70,7 @@ func New(cfg config.Config) (http.Handler, error) {
 		tokenManager:   tokenManager,
 		vendorService:  vendors.NewService(),
 		catalogService: catalog.NewService(),
+		coupons:        coupons.NewService(),
 		commerce:       commerceService,
 		invoices: invoices.NewService(invoices.Config{
 			PlatformName:         "Marketplace Gumroad Inspired",
@@ -141,8 +144,19 @@ func New(cfg config.Config) (http.Handler, error) {
 
 			private.Group(func(vendorRoutes chi.Router) {
 				vendorRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageVendorProducts))
+				vendorRoutes.Get("/vendor/products", apiHandlers.handleVendorListProducts)
 				vendorRoutes.Post("/vendor/products", apiHandlers.handleVendorCreateProduct)
+				vendorRoutes.Patch("/vendor/products/{productID}", apiHandlers.handleVendorUpdateProduct)
+				vendorRoutes.Delete("/vendor/products/{productID}", apiHandlers.handleVendorDeleteProduct)
 				vendorRoutes.Post("/vendor/products/{productID}/submit-moderation", apiHandlers.handleVendorSubmitModeration)
+			})
+
+			private.Group(func(vendorRoutes chi.Router) {
+				vendorRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageVendorCoupons))
+				vendorRoutes.Get("/vendor/coupons", apiHandlers.handleVendorListCoupons)
+				vendorRoutes.Post("/vendor/coupons", apiHandlers.handleVendorCreateCoupon)
+				vendorRoutes.Patch("/vendor/coupons/{couponID}", apiHandlers.handleVendorUpdateCoupon)
+				vendorRoutes.Delete("/vendor/coupons/{couponID}", apiHandlers.handleVendorDeleteCoupon)
 			})
 
 			private.Group(func(adminRoutes chi.Router) {
