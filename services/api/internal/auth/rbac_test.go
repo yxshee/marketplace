@@ -12,8 +12,11 @@ func TestIsAllowed(t *testing.T) {
 		{name: "buyer can view catalog", role: RoleBuyer, permission: PermissionViewCatalog, want: true},
 		{name: "buyer cannot manage promotions", role: RoleBuyer, permission: PermissionManagePromotions, want: false},
 		{name: "finance can manage commission", role: RoleFinance, permission: PermissionManageCommission, want: true},
-		{name: "support cannot moderate products", role: RoleSupport, permission: PermissionModerateProducts, want: false},
-		{name: "super admin can moderate products", role: RoleSuperAdmin, permission: PermissionModerateProducts, want: true},
+		{name: "finance cannot moderate products", role: RoleFinance, permission: PermissionModerateProducts, want: false},
+		{name: "support can manage vendor verification", role: RoleSupport, permission: PermissionManageVendorVerification, want: true},
+		{name: "support cannot manage commission", role: RoleSupport, permission: PermissionManageCommission, want: false},
+		{name: "catalog moderator can moderate products", role: RoleCatalogModerator, permission: PermissionModerateProducts, want: true},
+		{name: "super admin can do everything", role: RoleSuperAdmin, permission: PermissionManageTaxSettings, want: true},
 	}
 
 	for _, tc := range tests {

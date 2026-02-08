@@ -1,17 +1,17 @@
 # feat/api-foundation
 
-Status: Draft PR created for task tracking.
+Status: In progress - API foundation implemented and verified locally.
 
 ## Planned scope
 - Implement the branch scope defined in the marketplace execution plan.
 - Keep changes small, strongly typed, tested, and production-safe.
 
 ## Completion checklist
-- [ ] Implementation complete
-- [ ] pnpm -r lint
-- [ ] pnpm -r typecheck
-- [ ] pnpm -r test
-- [ ] pnpm -r build
-- [ ] go test ./... (API)
+- [x] Implementation complete
+- [x] pnpm -r lint
+- [x] pnpm -r typecheck
+- [x] pnpm -r test
+- [x] pnpm -r build
+- [x] go test ./... (API)
 - [ ] UI screenshots included (if UI changes)
-- [ ] Proof outputs added to PR description
+- [x] Proof outputs added to PR description
