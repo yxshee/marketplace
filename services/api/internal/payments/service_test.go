@@ -198,6 +198,71 @@ func TestStripeWebhookRejectsInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestStripeWebhookDoesNotMarkProcessedWhenOrderSyncFails(t *testing.T) {
+	markAttempts := 0
+	svc := NewService(Config{
+		WebhookSecret: "whsec_test_secret",
+		StripeClient:  NewMockStripeClient(),
+		MarkOrderPaid: func(orderID string) bool {
+			markAttempts++
+			return markAttempts > 1
+		},
+	})
+
+	order := commerce.Order{
+		ID:         "ord_test_sync_failure_retry",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 3400,
+		Currency:   "USD",
+	}
+
+	intent, err := svc.CreateStripeIntent(context.Background(), order, "idem-sync-failure")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() error = %v", err)
+	}
+
+	payload, signature := signedStripeEventPayload(
+		t,
+		"whsec_test_secret",
+		"evt_sync_failure_retry",
+		"payment_intent.succeeded",
+		intent.ProviderRef,
+	)
+
+	_, err = svc.HandleStripeWebhook(payload, signature)
+	if !errors.Is(err, ErrOrderSyncFailed) {
+		t.Fatalf("expected ErrOrderSyncFailed on first attempt, got %v", err)
+	}
+	if markAttempts != 1 {
+		t.Fatalf("expected mark callback once on first attempt, got %d", markAttempts)
+	}
+
+	second, err := svc.HandleStripeWebhook(payload, signature)
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got %v", err)
+	}
+	if !second.Processed || second.Duplicate {
+		t.Fatalf("expected retry processed=true duplicate=false, got processed=%t duplicate=%t", second.Processed, second.Duplicate)
+	}
+	if second.PaymentStatus != PaymentStatusSuccess {
+		t.Fatalf("expected payment status %s after retry, got %s", PaymentStatusSuccess, second.PaymentStatus)
+	}
+	if markAttempts != 2 {
+		t.Fatalf("expected mark callback twice after retry, got %d", markAttempts)
+	}
+
+	third, err := svc.HandleStripeWebhook(payload, signature)
+	if err != nil {
+		t.Fatalf("expected duplicate to be ignored, got %v", err)
+	}
+	if third.Processed || !third.Duplicate {
+		t.Fatalf("expected duplicate processed=false duplicate=true, got processed=%t duplicate=%t", third.Processed, third.Duplicate)
+	}
+	if markAttempts != 2 {
+		t.Fatalf("expected no additional mark callback on duplicate, got %d", markAttempts)
+	}
+}
+
 func TestConfirmCODPaymentIsIdempotentAndMarksOrder(t *testing.T) {
 	var codConfirmed []string
 	svc := NewService(Config{

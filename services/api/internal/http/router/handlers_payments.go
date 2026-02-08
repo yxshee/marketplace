@@ -103,6 +103,8 @@ func (a *api) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid stripe signature")
 		case errors.Is(err, payments.ErrPaymentNotFound):
 			writeError(w, http.StatusConflict, "payment event could not be matched")
+		case errors.Is(err, payments.ErrOrderSyncFailed):
+			writeError(w, http.StatusConflict, "payment event could not be applied")
 		case errors.Is(err, payments.ErrInvalidPayload):
 			writeError(w, http.StatusBadRequest, "invalid webhook payload")
 		default:

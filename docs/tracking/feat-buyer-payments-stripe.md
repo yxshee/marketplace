@@ -1,6 +1,6 @@
 # feat/buyer-payments-stripe
 
-Status: Complete - recreated from origin/main and hardened Stripe/COD payment settings enforcement + webhook concurrency idempotency.
+Status: Complete - recreated from origin/main and continued payment hardening.
 
 ## Planned scope
 - Implement the branch scope defined in the marketplace execution plan.
@@ -13,6 +13,8 @@ Status: Complete - recreated from origin/main and hardened Stripe/COD payment se
 - Updated checkout UI to hide/disable methods based on admin settings and show clear fallback messages.
 - Hardened Stripe webhook processing to be concurrency-safe and idempotent for duplicate simultaneous deliveries.
 - Added service tests that validate only one webhook delivery is processed under concurrent duplicate requests.
+- Ensured Stripe webhooks are not marked processed when order status synchronization fails, so identical retries can recover safely.
+- Added payment service test coverage for retry-after-sync-failure behavior and duplicate handling after successful retry.
 
 ## Completion checklist
 - [x] Implementation complete
