@@ -156,6 +156,72 @@ func TestConfirmCODPaymentRejectsPaidOrders(t *testing.T) {
 	}
 }
 
+func TestCreateStripeIntentReturnsExistingOrderIntentAcrossDifferentIdempotencyKeys(t *testing.T) {
+	svc := NewService(Config{
+		WebhookSecret: "whsec_test_secret",
+		StripeClient:  NewMockStripeClient(),
+	})
+
+	order := commerce.Order{
+		ID:         "ord_test_3",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 7300,
+		Currency:   "USD",
+	}
+
+	first, err := svc.CreateStripeIntent(context.Background(), order, "idem-pi-first")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() first error = %v", err)
+	}
+	second, err := svc.CreateStripeIntent(context.Background(), order, "idem-pi-second")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() second error = %v", err)
+	}
+
+	if first.ID != second.ID {
+		t.Fatalf("expected same payment id for order retries, got %s and %s", first.ID, second.ID)
+	}
+}
+
+func TestPaymentSettingsDisableStripeAndCOD(t *testing.T) {
+	svc := NewService(Config{
+		WebhookSecret: "whsec_test_secret",
+		StripeClient:  NewMockStripeClient(),
+	})
+
+	disabledStripe := false
+	updated := svc.UpdateSettings(PaymentSettingsUpdate{StripeEnabled: &disabledStripe})
+	if updated.StripeEnabled {
+		t.Fatalf("expected stripe to be disabled")
+	}
+
+	stripeOrder := commerce.Order{
+		ID:         "ord_test_settings_stripe",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 1500,
+		Currency:   "USD",
+	}
+	if _, err := svc.CreateStripeIntent(context.Background(), stripeOrder, "idem-settings-stripe"); !errors.Is(err, ErrStripeDisabled) {
+		t.Fatalf("expected ErrStripeDisabled, got %v", err)
+	}
+
+	disabledCOD := false
+	updated = svc.UpdateSettings(PaymentSettingsUpdate{CODEnabled: &disabledCOD})
+	if updated.CODEnabled {
+		t.Fatalf("expected cod to be disabled")
+	}
+
+	codOrder := commerce.Order{
+		ID:         "ord_test_settings_cod",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 2100,
+		Currency:   "USD",
+	}
+	if _, err := svc.ConfirmCODPayment(codOrder, "idem-settings-cod"); !errors.Is(err, ErrCODDisabled) {
+		t.Fatalf("expected ErrCODDisabled, got %v", err)
+	}
+}
+
 func signedStripeEventPayload(t *testing.T, secret, eventID, eventType, paymentIntentID string) ([]byte, string) {
 	t.Helper()
 

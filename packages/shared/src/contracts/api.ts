@@ -219,3 +219,9 @@ export interface StripeWebhookResponse {
   order_id?: string;
   payment_status?: "pending" | "succeeded" | "failed";
 }
+
+export interface PaymentSettingsResponse {
+  stripe_enabled: boolean;
+  cod_enabled: boolean;
+  updated_at: string;
+}
