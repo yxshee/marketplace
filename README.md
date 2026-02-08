@@ -9,12 +9,8 @@
   <br/>
   
   <p>
-    <a href="https://github.com/yxshee/marketplace-gumroad-inspired/actions/workflows/ci.yml">
-      <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/yxshee/marketplace-gumroad-inspired/ci.yml?branch=main&label=CI&style=for-the-badge" />
-    </a>
-    <a href="https://github.com/yxshee/marketplace-gumroad-inspired/releases/tag/v1.0.0">
-      <img alt="Release" src="https://img.shields.io/github/v/tag/yxshee/marketplace-gumroad-inspired?label=release&style=for-the-badge&color=success" />
-    </a>
+    <a href="https://github.com/yxshee/marketplace-gumroad-inspired/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/yxshee/marketplace-gumroad-inspired/ci.yml?branch=main&label=CI&style=for-the-badge"/></a>
+    <a href="https://github.com/yxshee/marketplace-gumroad-inspired/releases/tag/v1.0.0"><img alt="Release" src="https://img.shields.io/github/v/tag/yxshee/marketplace-gumroad-inspired?label=release&style=for-the-badge&color=success" /></a>
     <img alt="Go" src="https://img.shields.io/badge/go-1.24-00ADD8?style=for-the-badge&logo=go" />
     <img alt="Next.js" src="https://img.shields.io/badge/next.js-15-black?style=for-the-badge&logo=next.js" />
     <img alt="TypeScript" src="https://img.shields.io/badge/typescript-strict-3178C6?style=for-the-badge&logo=typescript" />
