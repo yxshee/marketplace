@@ -220,6 +220,7 @@ export interface VendorShipmentStatusEvent {
 export interface VendorShipment {
   id: string;
   order_id: string;
+  order_status: string;
   vendor_id: string;
   status: VendorShipmentStatus;
   item_count: number;
@@ -237,6 +238,65 @@ export interface VendorShipment {
 
 export interface VendorShipmentListResponse {
   items: VendorShipment[];
+  total: number;
+}
+
+export interface VendorAnalyticsConversionFunnel {
+  orders_total: number;
+  orders_paid: number;
+  shipments_total: number;
+  shipments_shipped: number;
+  shipments_delivered: number;
+}
+
+export interface VendorAnalyticsRefundStats {
+  requests_total: number;
+  pending_total: number;
+  approved_total: number;
+  rejected_total: number;
+  approval_rate_bps: number;
+  order_refund_rate_bps: number;
+}
+
+export interface VendorAnalyticsOverviewResponse {
+  currency: string;
+  revenue_cents: number;
+  order_count: number;
+  paid_order_count: number;
+  shipment_count: number;
+  conversion_funnel: VendorAnalyticsConversionFunnel;
+  refund_stats: VendorAnalyticsRefundStats;
+}
+
+export interface VendorAnalyticsTopProduct {
+  product_id: string;
+  title: string;
+  order_count: number;
+  units_sold: number;
+  revenue_cents: number;
+}
+
+export interface VendorAnalyticsTopProductsResponse {
+  items: VendorAnalyticsTopProduct[];
+  total: number;
+}
+
+export interface VendorAnalyticsCouponPerformance {
+  coupon_id: string;
+  code: string;
+  active: boolean;
+  discount_type: "percent" | "amount_cents";
+  discount_value: number;
+  usage_count: number;
+  discounts_granted_cents: number;
+  attributed_revenue_cents: number;
+  conversion_rate_bps: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VendorAnalyticsCouponsResponse {
+  items: VendorAnalyticsCouponPerformance[];
   total: number;
 }
 

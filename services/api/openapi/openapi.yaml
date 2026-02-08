@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.13.0
+  version: 0.14.0
 servers:
   - url: /api/v1
 paths:
@@ -604,6 +604,45 @@ paths:
         "200":
           description: Refund decision applied
 
+  /vendor/analytics/overview:
+    get:
+      summary: Vendor analytics overview metrics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor overview analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorAnalyticsOverviewResponse"
+
+  /vendor/analytics/top-products:
+    get:
+      summary: Top products performance for authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Top product analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorAnalyticsTopProductsResponse"
+
+  /vendor/analytics/coupons:
+    get:
+      summary: Coupon performance for authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coupon analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorAnalyticsCouponsResponse"
+
   /admin/vendors/{vendorID}/verification:
     patch:
       summary: Update vendor verification state
@@ -890,3 +929,151 @@ components:
         decision_reason:
           type: string
       required: [decision]
+
+    VendorAnalyticsOverviewResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        revenue_cents:
+          type: integer
+        order_count:
+          type: integer
+        paid_order_count:
+          type: integer
+        shipment_count:
+          type: integer
+        conversion_funnel:
+          $ref: "#/components/schemas/VendorAnalyticsConversionFunnel"
+        refund_stats:
+          $ref: "#/components/schemas/VendorAnalyticsRefundStats"
+      required:
+        [
+          currency,
+          revenue_cents,
+          order_count,
+          paid_order_count,
+          shipment_count,
+          conversion_funnel,
+          refund_stats,
+        ]
+
+    VendorAnalyticsConversionFunnel:
+      type: object
+      properties:
+        orders_total:
+          type: integer
+        orders_paid:
+          type: integer
+        shipments_total:
+          type: integer
+        shipments_shipped:
+          type: integer
+        shipments_delivered:
+          type: integer
+      required: [orders_total, orders_paid, shipments_total, shipments_shipped, shipments_delivered]
+
+    VendorAnalyticsRefundStats:
+      type: object
+      properties:
+        requests_total:
+          type: integer
+        pending_total:
+          type: integer
+        approved_total:
+          type: integer
+        rejected_total:
+          type: integer
+        approval_rate_bps:
+          type: integer
+        order_refund_rate_bps:
+          type: integer
+      required:
+        [
+          requests_total,
+          pending_total,
+          approved_total,
+          rejected_total,
+          approval_rate_bps,
+          order_refund_rate_bps,
+        ]
+
+    VendorAnalyticsTopProductsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorAnalyticsTopProduct"
+        total:
+          type: integer
+      required: [items, total]
+
+    VendorAnalyticsTopProduct:
+      type: object
+      properties:
+        product_id:
+          type: string
+        title:
+          type: string
+        order_count:
+          type: integer
+        units_sold:
+          type: integer
+        revenue_cents:
+          type: integer
+      required: [product_id, title, order_count, units_sold, revenue_cents]
+
+    VendorAnalyticsCouponsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorAnalyticsCouponPerformance"
+        total:
+          type: integer
+      required: [items, total]
+
+    VendorAnalyticsCouponPerformance:
+      type: object
+      properties:
+        coupon_id:
+          type: string
+        code:
+          type: string
+        active:
+          type: boolean
+        discount_type:
+          type: string
+          enum: [percent, amount_cents]
+        discount_value:
+          type: integer
+        usage_count:
+          type: integer
+        discounts_granted_cents:
+          type: integer
+        attributed_revenue_cents:
+          type: integer
+        conversion_rate_bps:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        [
+          coupon_id,
+          code,
+          active,
+          discount_type,
+          discount_value,
+          usage_count,
+          discounts_granted_cents,
+          attributed_revenue_cents,
+          conversion_rate_bps,
+          created_at,
+          updated_at,
+        ]

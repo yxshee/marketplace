@@ -177,6 +177,13 @@ func New(cfg config.Config) (http.Handler, error) {
 				vendorRoutes.Patch("/vendor/refund-requests/{refundRequestID}/decision", apiHandlers.handleVendorRefundDecision)
 			})
 
+			private.Group(func(vendorRoutes chi.Router) {
+				vendorRoutes.Use(apiHandlers.requirePermission(auth.PermissionViewVendorAnalytics))
+				vendorRoutes.Get("/vendor/analytics/overview", apiHandlers.handleVendorAnalyticsOverview)
+				vendorRoutes.Get("/vendor/analytics/top-products", apiHandlers.handleVendorAnalyticsTopProducts)
+				vendorRoutes.Get("/vendor/analytics/coupons", apiHandlers.handleVendorAnalyticsCoupons)
+			})
+
 			private.Group(func(adminRoutes chi.Router) {
 				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageVendorVerification))
 				adminRoutes.Patch("/admin/vendors/{vendorID}/verification", apiHandlers.handleAdminVendorVerification)

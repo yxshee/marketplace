@@ -16,6 +16,9 @@ import type {
   VendorRefundRequestListResponse,
   VendorCoupon,
   VendorCouponListResponse,
+  VendorAnalyticsCouponsResponse,
+  VendorAnalyticsOverviewResponse,
+  VendorAnalyticsTopProductsResponse,
   VendorProduct,
   VendorProductListResponse,
   VendorProfile,
@@ -590,6 +593,30 @@ export const getVendorRefundRequests = async (
 ): Promise<ApiCallResult<VendorRefundRequestListResponse>> => {
   const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
   return fetchJSON<VendorRefundRequestListResponse>(`/vendor/refund-requests${suffix}`, {
+    accessToken,
+  });
+};
+
+export const getVendorAnalyticsOverview = async (
+  accessToken: string,
+): Promise<ApiCallResult<VendorAnalyticsOverviewResponse>> => {
+  return fetchJSON<VendorAnalyticsOverviewResponse>("/vendor/analytics/overview", {
+    accessToken,
+  });
+};
+
+export const getVendorAnalyticsTopProducts = async (
+  accessToken: string,
+): Promise<ApiCallResult<VendorAnalyticsTopProductsResponse>> => {
+  return fetchJSON<VendorAnalyticsTopProductsResponse>("/vendor/analytics/top-products", {
+    accessToken,
+  });
+};
+
+export const getVendorAnalyticsCoupons = async (
+  accessToken: string,
+): Promise<ApiCallResult<VendorAnalyticsCouponsResponse>> => {
+  return fetchJSON<VendorAnalyticsCouponsResponse>("/vendor/analytics/coupons", {
     accessToken,
   });
 };

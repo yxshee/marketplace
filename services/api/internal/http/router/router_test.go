@@ -930,6 +930,231 @@ func TestVendorRefundRequestsAndDecisionFlow(t *testing.T) {
 	}
 }
 
+func TestVendorAnalyticsOverviewTopProductsAndCoupons(t *testing.T) {
+	r := mustRouter(t)
+
+	owner := registerUser(t, r, "vendor-analytics-owner@example.com")
+	admin := registerUser(t, r, "admin@example.com")
+	moderator := registerUser(t, r, "moderator@example.com")
+	buyer := registerUser(t, r, "buyer-analytics@example.com")
+
+	vendorCreated := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "vendor-analytics",
+		"display_name": "Vendor Analytics",
+	}, owner.AccessToken)
+	if vendorCreated.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", vendorCreated.Code, vendorCreated.Body.String())
+	}
+
+	var vendorBody struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(vendorCreated.Body.Bytes(), &vendorBody); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	verified := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/vendors/"+vendorBody.ID+"/verification", map[string]string{
+		"state":  "verified",
+		"reason": "kyc complete",
+	}, admin.AccessToken)
+	if verified.Code != http.StatusOK {
+		t.Fatalf("admin verify vendor status=%d body=%s", verified.Code, verified.Body.String())
+	}
+
+	ownerLogin := loginUser(t, r, "vendor-analytics-owner@example.com")
+
+	createdProduct := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products", map[string]interface{}{
+		"title":                "Analytics Product",
+		"description":          "Product to test vendor analytics",
+		"category_slug":        "stationery",
+		"tags":                 []string{"analytics"},
+		"price_incl_tax_cents": 3100,
+		"currency":             "USD",
+		"stock_qty":            15,
+	}, ownerLogin.AccessToken)
+	if createdProduct.Code != http.StatusCreated {
+		t.Fatalf("create product status=%d body=%s", createdProduct.Code, createdProduct.Body.String())
+	}
+
+	var product struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(createdProduct.Body.Bytes(), &product); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	submitted := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products/"+product.ID+"/submit-moderation", map[string]string{}, ownerLogin.AccessToken)
+	if submitted.Code != http.StatusOK {
+		t.Fatalf("submit moderation status=%d body=%s", submitted.Code, submitted.Body.String())
+	}
+
+	approved := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/moderation/products/"+product.ID, map[string]string{
+		"decision": "approve",
+	}, moderator.AccessToken)
+	if approved.Code != http.StatusOK {
+		t.Fatalf("approve moderation status=%d body=%s", approved.Code, approved.Body.String())
+	}
+
+	createCoupon := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/coupons", map[string]interface{}{
+		"code":           "ANALYTICS10",
+		"discount_type":  "percent",
+		"discount_value": 10,
+	}, ownerLogin.AccessToken)
+	if createCoupon.Code != http.StatusCreated {
+		t.Fatalf("create coupon status=%d body=%s", createCoupon.Code, createCoupon.Body.String())
+	}
+
+	guestHeaders := map[string]string{guestTokenHeader: "gst_vendor_analytics_flow"}
+	addRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+		"product_id": product.ID,
+		"qty":        2,
+	}, "", guestHeaders)
+	if addRes.Code != http.StatusOK {
+		t.Fatalf("add cart item status=%d body=%s", addRes.Code, addRes.Body.String())
+	}
+
+	orderRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-vendor-analytics-order-1",
+	}, "", guestHeaders)
+	if orderRes.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", orderRes.Code, orderRes.Body.String())
+	}
+
+	var orderPayload struct {
+		Order struct {
+			ID string `json:"id"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderRes.Body.Bytes(), &orderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	codRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/cod/confirm", map[string]interface{}{
+		"order_id":        orderPayload.Order.ID,
+		"idempotency_key": "idem-vendor-analytics-cod-1",
+	}, "", guestHeaders)
+	if codRes.Code != http.StatusCreated {
+		t.Fatalf("cod confirm status=%d body=%s", codRes.Code, codRes.Body.String())
+	}
+
+	shipmentListRes := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/shipments", nil, ownerLogin.AccessToken)
+	if shipmentListRes.Code != http.StatusOK {
+		t.Fatalf("list shipments status=%d body=%s", shipmentListRes.Code, shipmentListRes.Body.String())
+	}
+
+	var shipmentListPayload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(shipmentListRes.Body.Bytes(), &shipmentListPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(shipmentListPayload.Items) != 1 {
+		t.Fatalf("expected one shipment, got len=%d", len(shipmentListPayload.Items))
+	}
+
+	refundCreateRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/orders/"+orderPayload.Order.ID+"/refund-requests", map[string]interface{}{
+		"shipment_id": shipmentListPayload.Items[0].ID,
+		"reason":      "Changed mind",
+	}, "", guestHeaders)
+	if refundCreateRes.Code != http.StatusCreated {
+		t.Fatalf("create refund request status=%d body=%s", refundCreateRes.Code, refundCreateRes.Body.String())
+	}
+
+	var refundPayload struct {
+		RefundRequest struct {
+			ID string `json:"id"`
+		} `json:"refund_request"`
+	}
+	if err := json.Unmarshal(refundCreateRes.Body.Bytes(), &refundPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	approveRes := requestJSON(t, r, http.MethodPatch, "/api/v1/vendor/refund-requests/"+refundPayload.RefundRequest.ID+"/decision", map[string]string{
+		"decision":        "approve",
+		"decision_reason": "Approved for analytics flow",
+	}, ownerLogin.AccessToken)
+	if approveRes.Code != http.StatusOK {
+		t.Fatalf("approve refund status=%d body=%s", approveRes.Code, approveRes.Body.String())
+	}
+
+	overviewRes := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/analytics/overview", nil, ownerLogin.AccessToken)
+	if overviewRes.Code != http.StatusOK {
+		t.Fatalf("vendor analytics overview status=%d body=%s", overviewRes.Code, overviewRes.Body.String())
+	}
+	var overviewPayload struct {
+		RevenueCents   int64 `json:"revenue_cents"`
+		OrderCount     int   `json:"order_count"`
+		PaidOrderCount int   `json:"paid_order_count"`
+		ShipmentCount  int   `json:"shipment_count"`
+		RefundStats    struct {
+			ApprovedTotal int `json:"approved_total"`
+		} `json:"refund_stats"`
+	}
+	if err := json.Unmarshal(overviewRes.Body.Bytes(), &overviewPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if overviewPayload.OrderCount != 1 || overviewPayload.PaidOrderCount != 1 || overviewPayload.ShipmentCount != 1 {
+		t.Fatalf("unexpected overview counts %#v", overviewPayload)
+	}
+	if overviewPayload.RevenueCents <= 0 {
+		t.Fatalf("expected positive revenue, got %d", overviewPayload.RevenueCents)
+	}
+	if overviewPayload.RefundStats.ApprovedTotal != 1 {
+		t.Fatalf("expected approved refunds total 1, got %d", overviewPayload.RefundStats.ApprovedTotal)
+	}
+
+	topProductsRes := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/analytics/top-products", nil, ownerLogin.AccessToken)
+	if topProductsRes.Code != http.StatusOK {
+		t.Fatalf("vendor analytics top products status=%d body=%s", topProductsRes.Code, topProductsRes.Body.String())
+	}
+	var topProductsPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			ProductID string `json:"product_id"`
+			UnitsSold int32  `json:"units_sold"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(topProductsRes.Body.Bytes(), &topProductsPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if topProductsPayload.Total < 1 || len(topProductsPayload.Items) < 1 {
+		t.Fatalf("expected top products data, got total=%d len=%d", topProductsPayload.Total, len(topProductsPayload.Items))
+	}
+	if topProductsPayload.Items[0].ProductID != product.ID {
+		t.Fatalf("expected top product id %s, got %s", product.ID, topProductsPayload.Items[0].ProductID)
+	}
+	if topProductsPayload.Items[0].UnitsSold < 1 {
+		t.Fatalf("expected units sold to be positive, got %d", topProductsPayload.Items[0].UnitsSold)
+	}
+
+	couponAnalyticsRes := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/analytics/coupons", nil, ownerLogin.AccessToken)
+	if couponAnalyticsRes.Code != http.StatusOK {
+		t.Fatalf("vendor analytics coupons status=%d body=%s", couponAnalyticsRes.Code, couponAnalyticsRes.Body.String())
+	}
+	var couponAnalyticsPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			Code string `json:"code"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(couponAnalyticsRes.Body.Bytes(), &couponAnalyticsPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if couponAnalyticsPayload.Total != 1 || len(couponAnalyticsPayload.Items) != 1 {
+		t.Fatalf("expected single coupon analytics record, got total=%d len=%d", couponAnalyticsPayload.Total, len(couponAnalyticsPayload.Items))
+	}
+	if couponAnalyticsPayload.Items[0].Code != "ANALYTICS10" {
+		t.Fatalf("expected coupon code ANALYTICS10, got %s", couponAnalyticsPayload.Items[0].Code)
+	}
+
+	buyerForbidden := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/analytics/overview", nil, buyer.AccessToken)
+	if buyerForbidden.Code != http.StatusForbidden {
+		t.Fatalf("expected buyer forbidden for vendor analytics, got status=%d body=%s", buyerForbidden.Code, buyerForbidden.Body.String())
+	}
+}
+
 func TestCheckoutCreatesMultiShipmentAndIdempotentOrder(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"

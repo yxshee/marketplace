@@ -175,6 +175,7 @@ type ShipmentStatusEvent struct {
 type VendorShipment struct {
 	ID               string                `json:"id"`
 	OrderID          string                `json:"order_id"`
+	OrderStatus      string                `json:"order_status"`
 	VendorID         string                `json:"vendor_id"`
 	Status           string                `json:"status"`
 	ItemCount        int32                 `json:"item_count"`
@@ -665,6 +666,7 @@ func (s *Service) buildVendorShipmentLocked(order Order, shipment OrderShipment)
 	return VendorShipment{
 		ID:               shipment.ID,
 		OrderID:          order.ID,
+		OrderStatus:      order.Status,
 		VendorID:         shipment.VendorID,
 		Status:           shipment.Status,
 		ItemCount:        shipment.ItemCount,
