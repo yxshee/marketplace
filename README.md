@@ -1,24 +1,64 @@
 # marketplace-gumroad-inspired
 
-Multi-vendor ecommerce marketplace monorepo.
-
-## Surfaces
+Multi-vendor ecommerce marketplace monorepo with three surfaces:
 - Buyer
 - Vendor
 - Admin
 
-## Monorepo Layout (planned)
-- `apps/web` - Next.js frontend
-- `services/api` - Go API
-- `packages/shared` - shared TS contracts/schemas
-- `docs` - architecture, API, and runbooks
+## Tech Stack
+- Frontend: Next.js App Router + TypeScript + Tailwind CSS
+- Backend: Go + Chi + PostgreSQL + Redis
+- Shared contracts: TypeScript package with Zod schemas
+- CI: GitHub Actions
 
-## Workflow
-- `main` is protected and receives PR merges only after initialization.
-- Branch naming:
+## Repository Layout
+- `apps/web` - buyer/vendor/admin frontend
+- `services/api` - Go API service (source of truth for business logic)
+- `packages/shared` - shared API contracts and schemas
+- `docs` - architecture, API, design system, runbooks
+
+## Getting Started
+
+### Prerequisites
+- Node 20+
+- pnpm 9+
+- Go 1.19+
+
+### Install
+```bash
+pnpm install
+```
+
+### Run checks
+```bash
+pnpm -r lint
+pnpm -r typecheck
+pnpm -r test
+pnpm -r build
+cd services/api && go test ./...
+```
+
+### Run apps
+```bash
+# Web
+cd apps/web && pnpm dev
+
+# API
+cd services/api && go run ./cmd/server
+```
+
+### API Stripe configuration
+- `API_STRIPE_MODE`:
+  - `mock` (default) for local/test, creates deterministic mock intents.
+  - `live` for real Stripe API calls.
+- `API_STRIPE_SECRET_KEY`: required when `API_STRIPE_MODE=live`.
+- `API_STRIPE_WEBHOOK_SECRET`: secret used to verify `Stripe-Signature` on webhook events.
+
+## Branch & PR Policy
+- Use branch names:
   - `feat/<area>-<short-scope>`
   - `fix/<area>-<short-scope>`
   - `chore/<area>-<short-scope>`
   - `docs/<area>-<short-scope>`
-
-See `docs/README.md` for documentation structure.
+- No direct commits to `main` after initialization.
+- Every branch ends in a PR with verification evidence and screenshots for UI changes.
