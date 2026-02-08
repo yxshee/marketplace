@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.12.0
+  version: 0.13.0
 servers:
   - url: /api/v1
 paths:
@@ -258,6 +258,22 @@ paths:
       responses:
         "201":
           description: Stripe payment intent created
+
+  /payments/settings:
+    get:
+      summary: Get buyer-facing payment method availability
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payment settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
 
   /payments/cod/confirm:
     post:

@@ -31,6 +31,12 @@ type codPaymentResponse struct {
 	GuestToken string `json:"guest_token,omitempty"`
 }
 
+func (a *api) handleBuyerPaymentSettingsGet(w http.ResponseWriter, r *http.Request) {
+	_, guestToken := checkoutActor(r)
+	settings := a.payments.GetSettings()
+	writeBuyerResponse(w, http.StatusOK, settings, guestToken)
+}
+
 func (a *api) handleStripeCreateIntent(w http.ResponseWriter, r *http.Request) {
 	actor, guestToken := checkoutActor(r)
 
