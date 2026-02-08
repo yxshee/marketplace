@@ -43,10 +43,11 @@ Notes:
 
 | Variable | Required | Example | Purpose |
 |---|---:|---|---|
-| `MARKETPLACE_API_BASE_URL` | yes | `https://api.example.com/api/v1` | API base URL used by Next.js server runtime |
+| `NEXT_PUBLIC_API_BASE_URL` | yes | `https://api.example.com/api/v1` | API base URL (safe for server + browser) |
+| `MARKETPLACE_API_BASE_URL` | no | `https://api.example.com/api/v1` | Back-compat API base URL (server runtime fallback) |
 
 Notes:
-- This repo currently uses `MARKETPLACE_API_BASE_URL` (not `NEXT_PUBLIC_*`).
+- Prefer `NEXT_PUBLIC_API_BASE_URL` for Vercel. The code still accepts `MARKETPLACE_API_BASE_URL` as a fallback.
 - If you change the API domain, update this value and redeploy.
 
 ### API (Render) (`services/api`)
@@ -113,7 +114,7 @@ Provision these when the persistence layer is introduced:
 ### Step 2 (Web: Vercel)
 
 1. Create Vercel project with Root Directory `apps/web`.
-2. Set Vercel env var `MARKETPLACE_API_BASE_URL=https://<api-domain>/api/v1`.
+2. Set Vercel env var `NEXT_PUBLIC_API_BASE_URL=https://<api-domain>/api/v1`.
 3. Deploy on merge to `main`.
 
 ### Step 3 (Prod Wiring)

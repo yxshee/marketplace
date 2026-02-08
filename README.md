@@ -463,7 +463,8 @@ pnpm dev
 
 | Variable | Default | Description |
 |:---------|:--------|:------------|
-| `MARKETPLACE_API_BASE_URL` | `http://localhost:8080/api/v1` | Backend API base URL |
+| `NEXT_PUBLIC_API_BASE_URL` | - | Backend API base URL (preferred) |
+| `MARKETPLACE_API_BASE_URL` | `http://localhost:8080/api/v1` | Backend API base URL (back-compat fallback) |
 
 </details>
 

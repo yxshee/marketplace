@@ -26,7 +26,10 @@ import {
 import { formatUSD } from "@/lib/formatters";
 import { SurfaceCard } from "@/components/ui/surface-card";
 
-const API_BASE_URL = process.env.MARKETPLACE_API_BASE_URL ?? "http://localhost:8080/api/v1";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.MARKETPLACE_API_BASE_URL ??
+  "http://localhost:8080/api/v1";
 const vendorTokenCookieName = "mkt_vendor_access_token";
 
 interface VendorSurfacePageProps {
