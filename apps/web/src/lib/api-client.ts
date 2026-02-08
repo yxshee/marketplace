@@ -9,6 +9,7 @@ import type {
   CatalogSearchParams,
   CheckoutQuoteResponse,
   OrderResponse,
+  PaymentSettingsResponse,
   StripeIntentResponse,
   VendorProfile,
 } from "@marketplace/shared/contracts/api";
@@ -19,6 +20,7 @@ import {
   catalogSearchSchema,
   codConfirmPaymentSchema,
   checkoutPlaceOrderSchema,
+  paymentSettingsUpdateSchema,
   stripeCreateIntentSchema,
   vendorRegisterSchema,
 } from "@marketplace/shared/schemas/common";
@@ -331,6 +333,26 @@ export const registerVendorProfile = async (
 
 export const getVendorVerificationStatus = async (accessToken: string): Promise<ApiCallResult<VendorProfile>> => {
   return fetchJSON<VendorProfile>("/vendor/verification-status", {
+    accessToken,
+  });
+};
+
+export const getAdminPaymentSettings = async (
+  accessToken: string,
+): Promise<ApiCallResult<PaymentSettingsResponse>> => {
+  return fetchJSON<PaymentSettingsResponse>("/admin/settings/payments", {
+    accessToken,
+  });
+};
+
+export const updateAdminPaymentSettings = async (
+  input: { stripe_enabled?: boolean; cod_enabled?: boolean },
+  accessToken: string,
+): Promise<ApiCallResult<PaymentSettingsResponse>> => {
+  const parsed = paymentSettingsUpdateSchema.parse(input);
+  return fetchJSON<PaymentSettingsResponse>("/admin/settings/payments", {
+    method: "PATCH",
+    body: parsed,
     accessToken,
   });
 };

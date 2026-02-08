@@ -247,6 +247,68 @@ func TestRBACSupportAndFinanceSegmentation(t *testing.T) {
 	}
 }
 
+func TestAdminPaymentSettingsRBACAndEnforcement(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	r := mustRouterWithConfig(t, cfg)
+
+	support := registerUser(t, r, "support@example.com")
+	finance := registerUser(t, r, "finance@example.com")
+
+	supportRead := requestJSON(t, r, http.MethodGet, "/api/v1/admin/settings/payments", nil, support.AccessToken)
+	if supportRead.Code != http.StatusForbidden {
+		t.Fatalf("expected support to be forbidden from payment settings, got status=%d body=%s", supportRead.Code, supportRead.Body.String())
+	}
+
+	financeRead := requestJSON(t, r, http.MethodGet, "/api/v1/admin/settings/payments", nil, finance.AccessToken)
+	if financeRead.Code != http.StatusOK {
+		t.Fatalf("expected finance to read payment settings, got status=%d body=%s", financeRead.Code, financeRead.Body.String())
+	}
+
+	var initialSettings struct {
+		StripeEnabled bool `json:"stripe_enabled"`
+		CODEnabled    bool `json:"cod_enabled"`
+	}
+	if err := json.Unmarshal(financeRead.Body.Bytes(), &initialSettings); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !initialSettings.StripeEnabled || !initialSettings.CODEnabled {
+		t.Fatalf("expected both payment methods enabled by default, got %#v", initialSettings)
+	}
+
+	disableStripe := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/settings/payments", map[string]bool{
+		"stripe_enabled": false,
+	}, finance.AccessToken)
+	if disableStripe.Code != http.StatusOK {
+		t.Fatalf("expected finance to disable stripe, got status=%d body=%s", disableStripe.Code, disableStripe.Body.String())
+	}
+
+	stripeOrderID := createGuestOrderFromSeededCatalog(t, r, "gst_settings_stripe_disabled", "idem-settings-stripe-disabled-order")
+	stripeIntent := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/stripe/intent", map[string]interface{}{
+		"order_id":        stripeOrderID,
+		"idempotency_key": "idem-settings-stripe-disabled-intent",
+	}, "", map[string]string{guestTokenHeader: "gst_settings_stripe_disabled"})
+	if stripeIntent.Code != http.StatusConflict {
+		t.Fatalf("expected stripe intent to be blocked when disabled, got status=%d body=%s", stripeIntent.Code, stripeIntent.Body.String())
+	}
+
+	disableCOD := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/settings/payments", map[string]bool{
+		"cod_enabled": false,
+	}, finance.AccessToken)
+	if disableCOD.Code != http.StatusOK {
+		t.Fatalf("expected finance to disable cod, got status=%d body=%s", disableCOD.Code, disableCOD.Body.String())
+	}
+
+	codOrderID := createGuestOrderFromSeededCatalog(t, r, "gst_settings_cod_disabled", "idem-settings-cod-disabled-order")
+	codConfirm := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/cod/confirm", map[string]interface{}{
+		"order_id":        codOrderID,
+		"idempotency_key": "idem-settings-cod-disabled-confirm",
+	}, "", map[string]string{guestTokenHeader: "gst_settings_cod_disabled"})
+	if codConfirm.Code != http.StatusConflict {
+		t.Fatalf("expected cod confirmation to be blocked when disabled, got status=%d body=%s", codConfirm.Code, codConfirm.Body.String())
+	}
+}
+
 func TestModerationWorkflowSkeleton(t *testing.T) {
 	r := mustRouter(t)
 
@@ -794,6 +856,53 @@ func TestStripeWebhookRejectsInvalidSignature(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected invalid signature to return 400, got status=%d body=%s", rr.Code, rr.Body.String())
 	}
+}
+
+func createGuestOrderFromSeededCatalog(t *testing.T, r http.Handler, guestToken, idempotencyKey string) string {
+	t.Helper()
+
+	catalogRes := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products", nil, "")
+	if catalogRes.Code != http.StatusOK {
+		t.Fatalf("catalog status=%d body=%s", catalogRes.Code, catalogRes.Body.String())
+	}
+
+	var catalogPayload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(catalogRes.Body.Bytes(), &catalogPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(catalogPayload.Items) == 0 {
+		t.Fatal("expected at least one seeded product")
+	}
+
+	guestHeaders := map[string]string{guestTokenHeader: guestToken}
+	addRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+		"product_id": catalogPayload.Items[0].ID,
+		"qty":        1,
+	}, "", guestHeaders)
+	if addRes.Code != http.StatusOK {
+		t.Fatalf("add cart item status=%d body=%s", addRes.Code, addRes.Body.String())
+	}
+
+	orderRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": idempotencyKey,
+	}, "", guestHeaders)
+	if orderRes.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", orderRes.Code, orderRes.Body.String())
+	}
+
+	var orderPayload struct {
+		Order struct {
+			ID string `json:"id"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderRes.Body.Bytes(), &orderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	return orderPayload.Order.ID
 }
 
 func signedStripeWebhook(t *testing.T, secret, eventID, eventType, paymentIntentID string) ([]byte, string) {

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.8.0
+  version: 0.9.0
 servers:
   - url: /api/v1
 paths:
@@ -426,6 +426,36 @@ paths:
         "200":
           description: Product moderated
 
+  /admin/settings/payments:
+    get:
+      summary: Fetch platform payment settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
+    patch:
+      summary: Update platform payment settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentSettingsPatchRequest"
+      responses:
+        "200":
+          description: Payment settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -508,3 +538,24 @@ components:
           type: string
           minLength: 8
       required: [order_id, idempotency_key]
+
+    PaymentSettings:
+      type: object
+      properties:
+        stripe_enabled:
+          type: boolean
+        cod_enabled:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+      required: [stripe_enabled, cod_enabled, updated_at]
+
+    PaymentSettingsPatchRequest:
+      type: object
+      properties:
+        stripe_enabled:
+          type: boolean
+        cod_enabled:
+          type: boolean
+      minProperties: 1
