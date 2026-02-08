@@ -10,7 +10,7 @@ import (
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendor"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
 
 type healthResponse struct {
@@ -22,7 +22,7 @@ type healthResponse struct {
 type api struct {
 	authService    *auth.Service
 	tokenManager   *auth.TokenManager
-	vendorService  *vendor.Service
+	vendorService  *vendors.Service
 	catalogService *catalog.Service
 	defaultCommBPS int32
 }
@@ -53,9 +53,12 @@ func New(cfg config.Config) (http.Handler, error) {
 	apiHandlers := &api{
 		authService:    authService,
 		tokenManager:   tokenManager,
-		vendorService:  vendor.NewService(),
+		vendorService:  vendors.NewService(),
 		catalogService: catalog.NewService(),
 		defaultCommBPS: cfg.DefaultCommission,
+	}
+	if cfg.Environment == "development" {
+		apiHandlers.seedDevelopmentCatalog()
 	}
 
 	r := chi.NewRouter()
@@ -68,7 +71,9 @@ func New(cfg config.Config) (http.Handler, error) {
 
 	r.Route("/api/v1", func(v1 chi.Router) {
 		v1.Get("/health", healthHandler)
+		v1.Get("/catalog/categories", apiHandlers.handleCatalogCategories)
 		v1.Get("/catalog/products", apiHandlers.handleCatalogList)
+		v1.Get("/catalog/products/{productID}", apiHandlers.handleCatalogProductDetail)
 		v1.Post("/auth/register", apiHandlers.handleAuthRegister)
 		v1.Post("/auth/login", apiHandlers.handleAuthLogin)
 		v1.Post("/auth/refresh", apiHandlers.handleAuthRefresh)

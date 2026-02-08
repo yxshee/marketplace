@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/auth"
-	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendor"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
 
 type vendorRegisterRequest struct {
@@ -39,9 +39,9 @@ func (a *api) handleVendorRegister(w http.ResponseWriter, r *http.Request) {
 	registeredVendor, err := a.vendorService.Register(identity.UserID, req.Slug, req.DisplayName)
 	if err != nil {
 		switch {
-		case errors.Is(err, vendor.ErrOwnerAlreadyVendor):
+		case errors.Is(err, vendors.ErrOwnerAlreadyVendor):
 			writeError(w, http.StatusConflict, "user already owns a vendor")
-		case errors.Is(err, vendor.ErrSlugInUse):
+		case errors.Is(err, vendors.ErrSlugInUse):
 			writeError(w, http.StatusConflict, "vendor slug unavailable")
 		default:
 			writeError(w, http.StatusBadRequest, "unable to register vendor")
@@ -86,12 +86,12 @@ func (a *api) handleAdminVendorVerification(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	updatedVendor, err := a.vendorService.SetVerificationState(vendorID, vendor.VerificationState(req.State))
+	updatedVendor, err := a.vendorService.SetVerificationState(vendorID, vendors.VerificationState(req.State))
 	if err != nil {
 		switch {
-		case errors.Is(err, vendor.ErrVendorNotFound):
+		case errors.Is(err, vendors.ErrVendorNotFound):
 			writeError(w, http.StatusNotFound, "vendor not found")
-		case errors.Is(err, vendor.ErrInvalidState):
+		case errors.Is(err, vendors.ErrInvalidState):
 			writeError(w, http.StatusBadRequest, "invalid verification state")
 		default:
 			writeError(w, http.StatusBadRequest, "unable to update verification")
@@ -122,7 +122,7 @@ func (a *api) handleAdminVendorCommission(w http.ResponseWriter, r *http.Request
 
 	updatedVendor, err := a.vendorService.SetCommission(vendorID, req.CommissionOverrideBPS)
 	if err != nil {
-		if errors.Is(err, vendor.ErrVendorNotFound) {
+		if errors.Is(err, vendors.ErrVendorNotFound) {
 			writeError(w, http.StatusNotFound, "vendor not found")
 			return
 		}
