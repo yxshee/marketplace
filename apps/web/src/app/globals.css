@@ -1,15 +1,54 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Work+Sans:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --surface: #fcfcfc;
-  --ink: #111111;
-  --muted: #62636b;
-  --border: #dfdfe4;
-  --accent: #1f6feb;
+  color-scheme: light;
+  --canvas: #fbf8ff;
+  --surface: #ffffff;
+  --surface-soft: #f4efff;
+  --ink: #1c1828;
+  --muted: #6d6881;
+  --border: #ddd6ec;
+  --border-strong: #c5bbdd;
+  --accent: #5967ff;
+
+  --brand-50: #fff0fa;
+  --brand-100: #ffd8ef;
+  --brand-200: #ffb8de;
+  --brand-300: #ff96cd;
+  --brand-400: #ff72bb;
+  --brand-500: #ef4a9f;
+  --brand-600: #cc2f86;
+  --brand-700: #a6256d;
+
+  --accent-100: #e7e9ff;
+  --accent-300: #a9b1ff;
+  --accent-500: #5967ff;
+  --accent-600: #4653e0;
+
+  --success-500: #2ea66d;
+  --warning-500: #dc9f1f;
+  --danger-500: #d94967;
+
+  --shadow-soft: 0 1px 2px rgba(22, 18, 35, 0.05);
+  --shadow-card: 0 1px 0 rgba(20, 16, 34, 0.06), 0 12px 30px -24px rgba(43, 29, 77, 0.32);
+  --shadow-float: 0 16px 44px -30px rgba(36, 24, 68, 0.45);
+  --shadow-glow: 0 18px 40px -26px rgba(239, 74, 159, 0.55);
+
+  --radius-xs: 10px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+
+  --focus-ring: 0 0 0 3px rgba(89, 103, 255, 0.26);
+}
+
+:root[data-surface-mode="tinted"] {
+  --canvas: #f6f2ff;
+  --surface-soft: #eee8ff;
 }
 
 * {
@@ -20,9 +59,34 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--surface);
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% -8%, rgba(255, 170, 217, 0.3), transparent 34%),
+    radial-gradient(circle at 88% 2%, rgba(157, 168, 255, 0.24), transparent 30%),
+    var(--canvas);
   color: var(--ink);
-  font-family: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  text-rendering: geometricPrecision;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Sora", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+p {
+  color: var(--muted);
 }
 
 a {
@@ -30,7 +94,69 @@ a {
   text-decoration: none;
 }
 
+::selection {
+  background: var(--accent-100);
+  color: var(--ink);
+}
+
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+
+@layer components {
+  .surface-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+  }
+
+  .surface-soft {
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .text-eyebrow {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.17em;
+    text-transform: uppercase;
+  }
+
+  .hero-gradient {
+    background-image: linear-gradient(135deg, rgba(255, 114, 187, 0.18), rgba(89, 103, 255, 0.16));
+  }
+
+  .brand-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--brand-500), var(--accent-500));
+    box-shadow: var(--shadow-glow);
+  }
+}
+
+@layer utilities {
+  .focus-ring {
+    box-shadow: var(--focus-ring);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
