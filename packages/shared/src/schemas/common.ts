@@ -28,3 +28,16 @@ export const catalogSearchSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
+
+export const cartItemMutationSchema = z.object({
+  product_id: z.string().trim().min(1),
+  qty: z.coerce.number().int().min(1).max(999),
+});
+
+export const cartItemQtySchema = z.object({
+  qty: z.coerce.number().int().min(1).max(999),
+});
+
+export const checkoutPlaceOrderSchema = z.object({
+  idempotency_key: z.string().trim().min(8).max(128),
+});

@@ -70,3 +70,92 @@ export interface CatalogSearchParams {
   limit?: number;
   offset?: number;
 }
+
+export interface CartItem {
+  id: string;
+  product_id: string;
+  vendor_id: string;
+  title: string;
+  qty: number;
+  unit_price_cents: number;
+  line_total_cents: number;
+  currency: string;
+  available_stock: number;
+  last_updated_unix: number;
+}
+
+export interface CartResponse {
+  id: string;
+  currency: string;
+  item_count: number;
+  subtotal_cents: number;
+  items: CartItem[];
+  updated_at: string;
+  guest_token?: string;
+}
+
+export interface QuoteShipment {
+  vendor_id: string;
+  item_count: number;
+  subtotal_cents: number;
+  shipping_fee_cents: number;
+  total_cents: number;
+  items: CartItem[];
+}
+
+export interface CheckoutQuoteResponse {
+  currency: string;
+  item_count: number;
+  shipment_count: number;
+  subtotal_cents: number;
+  shipping_cents: number;
+  total_cents: number;
+  shipments: QuoteShipment[];
+  guest_token?: string;
+}
+
+export interface OrderShipment {
+  id: string;
+  vendor_id: string;
+  status: string;
+  item_count: number;
+  subtotal_cents: number;
+  shipping_fee_cents: number;
+  total_cents: number;
+}
+
+export interface OrderItem {
+  id: string;
+  shipment_id: string;
+  product_id: string;
+  vendor_id: string;
+  title: string;
+  qty: number;
+  unit_price_cents: number;
+  line_total_cents: number;
+  currency: string;
+}
+
+export interface Order {
+  id: string;
+  buyer_user_id?: string;
+  guest_token?: string;
+  status: string;
+  currency: string;
+  item_count: number;
+  shipment_count: number;
+  subtotal_cents: number;
+  shipping_cents: number;
+  discount_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  idempotency_key: string;
+  shipments: OrderShipment[];
+  items: OrderItem[];
+  created_at: string;
+}
+
+export interface OrderResponse {
+  order: Order;
+  guest_token?: string;
+}
