@@ -30,8 +30,8 @@
   
   [Features](#-features) •
   [Quick Start](#-quick-start) •
-  [Architecture](#-architecture) •
-  [Documentation](#-documentation) •
+  [Architecture](#-architecture-at-a-glance) •
+  [Documentation](#-documentation-hub) •
   [Contributing](#-contributing)
   
   <br/>
