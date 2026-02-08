@@ -248,6 +248,92 @@ func TestRBACSupportAndFinanceSegmentation(t *testing.T) {
 	}
 }
 
+func TestAdminVendorVerificationQueueListAndUpdate(t *testing.T) {
+	r := mustRouter(t)
+
+	owner := registerUser(t, r, "vendor-verification-owner@example.com")
+	admin := registerUser(t, r, "admin@example.com")
+	support := registerUser(t, r, "support@example.com")
+	finance := registerUser(t, r, "finance@example.com")
+
+	createdVendor := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "vendor-verification-queue",
+		"display_name": "Vendor Verification Queue",
+	}, owner.AccessToken)
+	if createdVendor.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", createdVendor.Code, createdVendor.Body.String())
+	}
+
+	var vendorPayload struct {
+		ID                string `json:"id"`
+		VerificationState string `json:"verification_state"`
+	}
+	if err := json.Unmarshal(createdVendor.Body.Bytes(), &vendorPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if vendorPayload.VerificationState != "pending" {
+		t.Fatalf("expected initial pending state, got %s", vendorPayload.VerificationState)
+	}
+
+	adminList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/vendors", nil, admin.AccessToken)
+	if adminList.Code != http.StatusOK {
+		t.Fatalf("admin vendor list status=%d body=%s", adminList.Code, adminList.Body.String())
+	}
+	var adminListPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			ID                string `json:"id"`
+			VerificationState string `json:"verification_state"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(adminList.Body.Bytes(), &adminListPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if adminListPayload.Total != 1 || len(adminListPayload.Items) != 1 {
+		t.Fatalf("expected one vendor in list, got total=%d len=%d", adminListPayload.Total, len(adminListPayload.Items))
+	}
+	if adminListPayload.Items[0].ID != vendorPayload.ID {
+		t.Fatalf("expected listed vendor id %s, got %s", vendorPayload.ID, adminListPayload.Items[0].ID)
+	}
+
+	invalidFilter := requestJSON(t, r, http.MethodGet, "/api/v1/admin/vendors?verification_state=invalid", nil, admin.AccessToken)
+	if invalidFilter.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid filter to return 400, got status=%d body=%s", invalidFilter.Code, invalidFilter.Body.String())
+	}
+
+	verify := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/vendors/"+vendorPayload.ID+"/verification", map[string]string{
+		"state":  "verified",
+		"reason": "manual review complete",
+	}, admin.AccessToken)
+	if verify.Code != http.StatusOK {
+		t.Fatalf("admin verify status=%d body=%s", verify.Code, verify.Body.String())
+	}
+
+	verifiedList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/vendors?verification_state=verified", nil, admin.AccessToken)
+	if verifiedList.Code != http.StatusOK {
+		t.Fatalf("admin verified filter status=%d body=%s", verifiedList.Code, verifiedList.Body.String())
+	}
+	var verifiedPayload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(verifiedList.Body.Bytes(), &verifiedPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if verifiedPayload.Total != 1 {
+		t.Fatalf("expected one verified vendor, got %d", verifiedPayload.Total)
+	}
+
+	supportList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/vendors", nil, support.AccessToken)
+	if supportList.Code != http.StatusOK {
+		t.Fatalf("support should access vendor verification queue, got status=%d body=%s", supportList.Code, supportList.Body.String())
+	}
+
+	financeList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/vendors", nil, finance.AccessToken)
+	if financeList.Code != http.StatusForbidden {
+		t.Fatalf("finance should be forbidden for vendor verification queue, got status=%d body=%s", financeList.Code, financeList.Body.String())
+	}
+}
+
 func TestAdminPaymentSettingsRBACAndEnforcement(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"

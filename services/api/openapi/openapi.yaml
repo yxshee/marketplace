@@ -658,6 +658,21 @@ paths:
         "200":
           description: Verification updated
 
+  /admin/vendors:
+    get:
+      summary: List vendors for admin verification queue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: verification_state
+          schema:
+            type: string
+            enum: [pending, verified, rejected, suspended]
+      responses:
+        "200":
+          description: Vendor queue list
+
   /admin/vendors/{vendorID}/commission:
     patch:
       summary: Set vendor commission override in basis points
