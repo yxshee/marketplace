@@ -137,3 +137,9 @@ export const vendorCouponUpdateSchema = z
       message: "at least one field is required",
     },
   );
+
+export const vendorShipmentStatusSchema = z.enum(["pending", "packed", "shipped", "delivered", "cancelled"]);
+
+export const vendorShipmentStatusUpdateSchema = z.object({
+  status: vendorShipmentStatusSchema,
+});

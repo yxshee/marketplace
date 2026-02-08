@@ -159,6 +159,13 @@ func New(cfg config.Config) (http.Handler, error) {
 				vendorRoutes.Delete("/vendor/coupons/{couponID}", apiHandlers.handleVendorDeleteCoupon)
 			})
 
+			private.Group(func(vendorRoutes chi.Router) {
+				vendorRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageShipmentOrders))
+				vendorRoutes.Get("/vendor/shipments", apiHandlers.handleVendorListShipments)
+				vendorRoutes.Get("/vendor/shipments/{shipmentID}", apiHandlers.handleVendorShipmentDetail)
+				vendorRoutes.Patch("/vendor/shipments/{shipmentID}/status", apiHandlers.handleVendorShipmentStatusUpdate)
+			})
+
 			private.Group(func(adminRoutes chi.Router) {
 				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageVendorVerification))
 				adminRoutes.Patch("/admin/vendors/{vendorID}/verification", apiHandlers.handleAdminVendorVerification)

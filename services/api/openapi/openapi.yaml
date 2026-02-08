@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.10.0
+  version: 0.11.0
 servers:
   - url: /api/v1
 paths:
@@ -484,6 +484,51 @@ paths:
         "204":
           description: Coupon deleted
 
+  /vendor/shipments:
+    get:
+      summary: List shipments owned by authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor shipment list
+
+  /vendor/shipments/{shipmentID}:
+    get:
+      summary: Get shipment detail for authenticated vendor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: shipmentID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Vendor shipment detail
+
+  /vendor/shipments/{shipmentID}/status:
+    patch:
+      summary: Update shipment status for authenticated vendor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: shipmentID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateShipmentStatusRequest"
+      responses:
+        "200":
+          description: Shipment status updated
+
   /admin/vendors/{vendorID}/verification:
     patch:
       summary: Update vendor verification state
@@ -740,3 +785,11 @@ components:
         active:
           type: boolean
       minProperties: 1
+
+    VendorUpdateShipmentStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, packed, shipped, delivered, cancelled]
+      required: [status]

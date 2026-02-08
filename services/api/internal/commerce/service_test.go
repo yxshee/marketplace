@@ -166,3 +166,97 @@ func TestMarkOrderPaymentStatuses(t *testing.T) {
 		t.Fatalf("expected paid order to remain %s, got %s", OrderStatusPaid, codAfterPaid.Status)
 	}
 }
+
+func TestVendorShipmentListingAndStatusTransitions(t *testing.T) {
+	svc := NewService(500)
+	actor := Actor{GuestToken: "gst_test_vendor_shipments"}
+
+	if _, err := svc.UpsertItem(actor, ProductSnapshot{
+		ID:                    "prd_vendor_a",
+		VendorID:              "ven_a",
+		Title:                 "Notebook",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1200,
+		StockQty:              10,
+	}, 1); err != nil {
+		t.Fatalf("UpsertItem() vendor a error = %v", err)
+	}
+	if _, err := svc.UpsertItem(actor, ProductSnapshot{
+		ID:                    "prd_vendor_b",
+		VendorID:              "ven_b",
+		Title:                 "Poster",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1800,
+		StockQty:              10,
+	}, 1); err != nil {
+		t.Fatalf("UpsertItem() vendor b error = %v", err)
+	}
+
+	order, err := svc.PlaceOrder(actor, "idem-vendor-shipment")
+	if err != nil {
+		t.Fatalf("PlaceOrder() error = %v", err)
+	}
+
+	var vendorAShipmentID string
+	for _, shipment := range order.Shipments {
+		if shipment.VendorID == "ven_a" {
+			vendorAShipmentID = shipment.ID
+			break
+		}
+	}
+	if vendorAShipmentID == "" {
+		t.Fatal("expected vendor A shipment id to be present")
+	}
+
+	vendorAShipments, err := svc.ListVendorShipments("ven_a")
+	if err != nil {
+		t.Fatalf("ListVendorShipments() error = %v", err)
+	}
+	if len(vendorAShipments) != 1 {
+		t.Fatalf("expected one vendor shipment, got %d", len(vendorAShipments))
+	}
+	if vendorAShipments[0].Status != ShipmentStatusPending {
+		t.Fatalf("expected pending status, got %s", vendorAShipments[0].Status)
+	}
+	if len(vendorAShipments[0].Timeline) != 1 {
+		t.Fatalf("expected initial timeline event, got %d", len(vendorAShipments[0].Timeline))
+	}
+
+	if _, err := svc.UpdateVendorShipmentStatus("ven_a", vendorAShipmentID, ShipmentStatusPacked, "usr_vendor_a"); err != nil {
+		t.Fatalf("UpdateVendorShipmentStatus(packed) error = %v", err)
+	}
+	if _, err := svc.UpdateVendorShipmentStatus("ven_a", vendorAShipmentID, ShipmentStatusShipped, "usr_vendor_a"); err != nil {
+		t.Fatalf("UpdateVendorShipmentStatus(shipped) error = %v", err)
+	}
+	delivered, err := svc.UpdateVendorShipmentStatus("ven_a", vendorAShipmentID, ShipmentStatusDelivered, "usr_vendor_a")
+	if err != nil {
+		t.Fatalf("UpdateVendorShipmentStatus(delivered) error = %v", err)
+	}
+	if delivered.Status != ShipmentStatusDelivered {
+		t.Fatalf("expected delivered status, got %s", delivered.Status)
+	}
+	if delivered.ShippedAt == nil || delivered.DeliveredAt == nil {
+		t.Fatal("expected shipped_at and delivered_at timestamps to be recorded")
+	}
+	if len(delivered.Timeline) != 4 {
+		t.Fatalf("expected 4 timeline events, got %d", len(delivered.Timeline))
+	}
+
+	if _, err := svc.UpdateVendorShipmentStatus("ven_a", vendorAShipmentID, ShipmentStatusPending, "usr_vendor_a"); err != ErrShipmentTransition {
+		t.Fatalf("expected ErrShipmentTransition, got %v", err)
+	}
+	if _, err := svc.UpdateVendorShipmentStatus("ven_b", vendorAShipmentID, ShipmentStatusPacked, "usr_vendor_b"); err != ErrShipmentForbidden {
+		t.Fatalf("expected ErrShipmentForbidden, got %v", err)
+	}
+
+	fetched, found, err := svc.GetVendorShipment("ven_a", vendorAShipmentID)
+	if err != nil {
+		t.Fatalf("GetVendorShipment() error = %v", err)
+	}
+	if !found {
+		t.Fatal("expected shipment lookup to succeed")
+	}
+	if fetched.ID != vendorAShipmentID {
+		t.Fatalf("expected shipment id %s, got %s", vendorAShipmentID, fetched.ID)
+	}
+}

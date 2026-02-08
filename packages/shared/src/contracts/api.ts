@@ -200,6 +200,39 @@ export interface OrderItem {
   currency: string;
 }
 
+export type VendorShipmentStatus = "pending" | "packed" | "shipped" | "delivered" | "cancelled";
+
+export interface VendorShipmentStatusEvent {
+  shipment_id: string;
+  vendor_id: string;
+  status: VendorShipmentStatus;
+  actor_user_id?: string;
+  at: string;
+}
+
+export interface VendorShipment {
+  id: string;
+  order_id: string;
+  vendor_id: string;
+  status: VendorShipmentStatus;
+  item_count: number;
+  subtotal_cents: number;
+  shipping_fee_cents: number;
+  total_cents: number;
+  currency: string;
+  items: OrderItem[];
+  created_at: string;
+  updated_at: string;
+  shipped_at?: string;
+  delivered_at?: string;
+  timeline: VendorShipmentStatusEvent[];
+}
+
+export interface VendorShipmentListResponse {
+  items: VendorShipment[];
+  total: number;
+}
+
 export interface Order {
   id: string;
   buyer_user_id?: string;
