@@ -114,6 +114,16 @@ export const adminPromotionUpdateSchema = z
     },
   );
 
+export const adminAuditLogQuerySchema = z.object({
+  actor_type: z.enum(["admin", "vendor", "buyer"]).optional(),
+  actor_id: z.string().trim().min(1).optional(),
+  action: z.string().trim().min(1).optional(),
+  target_type: z.string().trim().min(1).optional(),
+  target_id: z.string().trim().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+
 export const vendorProductCreateSchema = z.object({
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().min(2).max(4000),

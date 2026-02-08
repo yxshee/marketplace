@@ -31,9 +31,20 @@ func (a *api) handleAdminPaymentSettingsPatch(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	previous := a.payments.GetSettings()
 	settings := a.payments.UpdateSettings(payments.PaymentSettingsUpdate{
 		StripeEnabled: req.StripeEnabled,
 		CODEnabled:    req.CODEnabled,
 	})
+	a.recordAuditLog(
+		r,
+		"payment_settings_updated",
+		"payment_settings",
+		"default",
+		previous,
+		settings,
+		nil,
+	)
+
 	writeJSON(w, http.StatusOK, paymentSettingsResponse{PaymentSettings: settings})
 }

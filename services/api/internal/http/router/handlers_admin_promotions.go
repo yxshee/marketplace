@@ -67,6 +67,15 @@ func (a *api) handleAdminPromotionCreate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	a.recordAuditLog(
+		r,
+		"promotion_created",
+		"promotion",
+		promotion.ID,
+		nil,
+		promotion,
+		nil,
+	)
 	writeJSON(w, http.StatusCreated, promotion)
 }
 
@@ -74,6 +83,11 @@ func (a *api) handleAdminPromotionUpdate(w http.ResponseWriter, r *http.Request)
 	promotionID := strings.TrimSpace(chi.URLParam(r, "promotionID"))
 	if promotionID == "" {
 		writeError(w, http.StatusBadRequest, "promotion id is required")
+		return
+	}
+	previousPromotion, exists := a.promotions.GetByID(promotionID)
+	if !exists {
+		writeError(w, http.StatusNotFound, "promotion not found")
 		return
 	}
 
@@ -104,6 +118,15 @@ func (a *api) handleAdminPromotionUpdate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	a.recordAuditLog(
+		r,
+		"promotion_updated",
+		"promotion",
+		promotion.ID,
+		previousPromotion,
+		promotion,
+		nil,
+	)
 	writeJSON(w, http.StatusOK, promotion)
 }
 
@@ -113,18 +136,30 @@ func (a *api) handleAdminPromotionDelete(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "promotion id is required")
 		return
 	}
+	previousPromotion, exists := a.promotions.GetByID(promotionID)
+	if !exists {
+		writeError(w, http.StatusNotFound, "promotion not found")
+		return
+	}
 
 	if err := a.promotions.Delete(promotionID); err != nil {
 		switch {
 		case errors.Is(err, promotions.ErrInvalidPromotion):
 			writeError(w, http.StatusBadRequest, "promotion id is required")
-		case errors.Is(err, promotions.ErrPromotionNotFound):
-			writeError(w, http.StatusNotFound, "promotion not found")
 		default:
 			writeError(w, http.StatusInternalServerError, "unable to delete promotion")
 		}
 		return
 	}
 
+	a.recordAuditLog(
+		r,
+		"promotion_deleted",
+		"promotion",
+		promotionID,
+		previousPromotion,
+		nil,
+		nil,
+	)
 	w.WriteHeader(http.StatusNoContent)
 }

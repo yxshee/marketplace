@@ -36,6 +36,13 @@ func TestPromotionCRUD(t *testing.T) {
 	if list[0].ID != created.ID {
 		t.Fatalf("expected created promotion id %s in list, got %s", created.ID, list[0].ID)
 	}
+	stored, found := service.GetByID(created.ID)
+	if !found {
+		t.Fatalf("expected promotion to be retrievable by id")
+	}
+	if stored.ID != created.ID {
+		t.Fatalf("expected stored promotion id %s, got %s", created.ID, stored.ID)
+	}
 
 	updated, err := service.Update(created.ID, UpdatePromotionInput{
 		Name:      stringPtr("Launch Discount Final"),

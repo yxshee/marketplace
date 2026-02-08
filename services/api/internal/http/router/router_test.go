@@ -788,6 +788,119 @@ func TestAdminPromotionsCRUDAndRBAC(t *testing.T) {
 	}
 }
 
+func TestAdminAuditLogsListAndRBAC(t *testing.T) {
+	r := mustRouter(t)
+
+	support := registerUser(t, r, "support@example.com")
+	finance := registerUser(t, r, "finance@example.com")
+	buyer := registerUser(t, r, "buyer-audit@example.com")
+
+	vendorCreated := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "vendor-audit",
+		"display_name": "Vendor Audit",
+	}, buyer.AccessToken)
+	if vendorCreated.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", vendorCreated.Code, vendorCreated.Body.String())
+	}
+	var vendor struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(vendorCreated.Body.Bytes(), &vendor); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	verified := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/vendors/"+vendor.ID+"/verification", map[string]string{
+		"state":  "verified",
+		"reason": "kyc complete",
+	}, support.AccessToken)
+	if verified.Code != http.StatusOK {
+		t.Fatalf("admin verify vendor status=%d body=%s", verified.Code, verified.Body.String())
+	}
+
+	supportList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/audit-logs", nil, support.AccessToken)
+	if supportList.Code != http.StatusOK {
+		t.Fatalf("support audit log list status=%d body=%s", supportList.Code, supportList.Body.String())
+	}
+	var supportPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			ActorID    string `json:"actor_id"`
+			ActorType  string `json:"actor_type"`
+			Action     string `json:"action"`
+			TargetType string `json:"target_type"`
+			TargetID   string `json:"target_id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(supportList.Body.Bytes(), &supportPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if supportPayload.Total < 1 || len(supportPayload.Items) < 1 {
+		t.Fatalf("expected at least one audit log item, got total=%d len=%d", supportPayload.Total, len(supportPayload.Items))
+	}
+	if supportPayload.Items[0].ActorID != support.User.ID {
+		t.Fatalf("expected actor_id %s, got %s", support.User.ID, supportPayload.Items[0].ActorID)
+	}
+	if supportPayload.Items[0].ActorType != "admin" {
+		t.Fatalf("expected actor_type admin, got %s", supportPayload.Items[0].ActorType)
+	}
+	if supportPayload.Items[0].Action != "vendor_verification_updated" {
+		t.Fatalf("expected action vendor_verification_updated, got %s", supportPayload.Items[0].Action)
+	}
+	if supportPayload.Items[0].TargetType != "vendor" {
+		t.Fatalf("expected target_type vendor, got %s", supportPayload.Items[0].TargetType)
+	}
+	if supportPayload.Items[0].TargetID != vendor.ID {
+		t.Fatalf("expected target_id %s, got %s", vendor.ID, supportPayload.Items[0].TargetID)
+	}
+
+	filtered := requestJSON(
+		t,
+		r,
+		http.MethodGet,
+		"/api/v1/admin/audit-logs?action=vendor_verification_updated&target_type=vendor&target_id="+vendor.ID,
+		nil,
+		support.AccessToken,
+	)
+	if filtered.Code != http.StatusOK {
+		t.Fatalf("filtered audit logs status=%d body=%s", filtered.Code, filtered.Body.String())
+	}
+	var filteredPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			TargetID string `json:"target_id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(filtered.Body.Bytes(), &filteredPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if filteredPayload.Total != 1 || len(filteredPayload.Items) != 1 {
+		t.Fatalf("expected one filtered audit log item, got total=%d len=%d", filteredPayload.Total, len(filteredPayload.Items))
+	}
+	if filteredPayload.Items[0].TargetID != vendor.ID {
+		t.Fatalf("expected filtered target_id %s, got %s", vendor.ID, filteredPayload.Items[0].TargetID)
+	}
+
+	financeList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/audit-logs?limit=1", nil, finance.AccessToken)
+	if financeList.Code != http.StatusOK {
+		t.Fatalf("finance audit log list status=%d body=%s", financeList.Code, financeList.Body.String())
+	}
+
+	buyerList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/audit-logs", nil, buyer.AccessToken)
+	if buyerList.Code != http.StatusForbidden {
+		t.Fatalf("buyer should be forbidden from audit logs, got status=%d body=%s", buyerList.Code, buyerList.Body.String())
+	}
+
+	invalidLimit := requestJSON(t, r, http.MethodGet, "/api/v1/admin/audit-logs?limit=0", nil, support.AccessToken)
+	if invalidLimit.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid limit to fail, got status=%d body=%s", invalidLimit.Code, invalidLimit.Body.String())
+	}
+
+	invalidOffset := requestJSON(t, r, http.MethodGet, "/api/v1/admin/audit-logs?offset=-1", nil, support.AccessToken)
+	if invalidOffset.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid offset to fail, got status=%d body=%s", invalidOffset.Code, invalidOffset.Body.String())
+	}
+}
+
 func TestBuyerPaymentSettingsExposeCurrentAvailability(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"

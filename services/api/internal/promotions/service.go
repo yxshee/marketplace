@@ -76,6 +76,18 @@ func (s *Service) List() []Promotion {
 	return items
 }
 
+func (s *Service) GetByID(promotionID string) (Promotion, bool) {
+	id := strings.TrimSpace(promotionID)
+	if id == "" {
+		return Promotion{}, false
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	promotion, exists := s.byID[id]
+	return promotion, exists
+}
+
 func (s *Service) Create(input CreatePromotionInput) (Promotion, error) {
 	name, err := normalizePromotionName(input.Name)
 	if err != nil {

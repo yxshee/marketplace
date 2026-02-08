@@ -60,6 +60,25 @@ export interface AdminPromotionListResponse {
   total: number;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  actor_type: "admin" | "vendor" | "buyer";
+  actor_id: string;
+  actor_role?: string;
+  action: string;
+  target_type: string;
+  target_id: string;
+  before_json?: Record<string, unknown>;
+  after_json?: Record<string, unknown>;
+  metadata_json?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AdminAuditLogListResponse {
+  items: AuditLogEntry[];
+  total: number;
+}
+
 export interface VendorProduct {
   id: string;
   vendor_id: string;
