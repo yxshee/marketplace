@@ -1,49 +1,116 @@
-# marketplace-gumroad-inspired
+<div align="center">
+  <h1>marketplace-gumroad-inspired</h1>
+  <p><strong>Production-grade multi-vendor ecommerce marketplace</strong></p>
+  <p>Buyer, Vendor, and Admin surfaces with a clean, whitespace-first, Gumroad-inspired UI philosophy.</p>
+</div>
 
-Production-grade multi-vendor ecommerce marketplace with three surfaces:
-- Buyer
-- Vendor
-- Admin
+<p align="center">
+  <a href="https://github.com/yxshee/marketplace-gumroad-inspired/actions/workflows/ci.yml">
+    <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/yxshee/marketplace-gumroad-inspired/ci.yml?branch=main&label=CI" />
+  </a>
+  <a href="https://github.com/yxshee/marketplace-gumroad-inspired/releases/tag/v1.0.0">
+    <img alt="Release" src="https://img.shields.io/github/v/tag/yxshee/marketplace-gumroad-inspired?label=release" />
+  </a>
+  <img alt="Go" src="https://img.shields.io/badge/go-1.24-00ADD8" />
+  <img alt="Next.js" src="https://img.shields.io/badge/next.js-15-black" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/typescript-strict-3178C6" />
+  <a href="./LICENSE">
+    <img alt="License" src="https://img.shields.io/github/license/yxshee/marketplace-gumroad-inspired" />
+  </a>
+</p>
 
-UI/UX direction follows Gumroad-inspired principles (minimal, whitespace-first, crisp typography) with original components and assets.
+## Why This Project Exists
 
-## Current release
-- Target release: `v1.0.0`
-- Web: Next.js App Router + TypeScript
-- API: Go + Chi (business-rule source of truth)
+This repository delivers a marketplace architecture where the **Go API is the source of truth** for business invariants while Next.js provides fast, minimal, and consistent UX across all surfaces.
 
-## Core capabilities
-- Multi-vendor shared catalog with moderation gating
-- Multi-shipment checkout (single order split by vendor)
-- Stripe + COD payment flows with idempotency and webhook verification
-- Vendor verification lifecycle and admin role-based operations
-- Refund request + vendor decision flows
-- Invoice PDF generation and retrieval
-- Vendor/admin analytics and audit logging
+Key principles:
+- Minimal UI, original components, consistent spacing/typography.
+- Clear separation of concerns between frontend, API, and shared contracts.
+- Security-first flows for auth, RBAC, payments, uploads, and auditability.
 
-## Repository layout
-- `apps/web` - Buyer/Vendor/Admin frontend
-- `services/api` - Go API service
-- `packages/shared` - Shared TS contracts + Zod schemas
-- `docs` - Architecture, API docs, runbooks, tracking, screenshots
+## Product Surfaces
 
-## Prerequisites
+| Surface | Primary Users | Core Outcomes |
+| --- | --- | --- |
+| Buyer | Guests + logged-in customers | Discovery, checkout, orders, invoices, reviews, wallet |
+| Vendor | Vendor owner | Product lifecycle, coupons, shipment ops, refund decisions, analytics |
+| Admin | Super admin, support, finance, catalog moderator | Verification, moderation, promotions, operations, audit + platform analytics |
+
+## System Snapshot
+
+| Layer | Stack | Responsibility |
+| --- | --- | --- |
+| Web | Next.js App Router + TypeScript + Tailwind | Buyer/Vendor/Admin UI, SSR pages, accessible interactions |
+| API | Go + Chi + PostgreSQL + Redis | Domain logic, RBAC, checkout splitting, payments, moderation, invoicing |
+| Contracts | `packages/shared` (TypeScript + Zod) | Shared API contracts and schema validation |
+| Infrastructure | GitHub Actions + Vercel + Render + Docker | CI, deploy, and runtime parity |
+
+## Architecture At A Glance
+
+```mermaid
+flowchart LR
+  B[Buyer UI] --> W[Next.js Web App]
+  V[Vendor UI] --> W
+  A[Admin UI] --> W
+  W -->|REST /api/v1| API[Go API (Chi)]
+
+  API --> PG[(PostgreSQL)]
+  API --> R[(Redis)]
+  API --> S3[(S3 Compatible Storage)]
+  API --> ST[Stripe]
+
+  ST -->|Webhook| API
+  API --> INV[PDF Invoices]
+  API --> EVT[Audit + Event Logs]
+```
+
+## Core Capabilities
+
+| Commerce | Governance | Operations |
+| --- | --- | --- |
+| Multi-vendor shared catalog | Product moderation workflow | Stripe + COD payment flows |
+| Multi-shipment checkout per order | Vendor verification lifecycle | Idempotent webhook processing |
+| Coupon and promotion model | Role-based admin controls | Invoice generation and download |
+| Search and discovery filters | Audit logging for critical actions | Vendor and platform analytics |
+
+## Repository Layout
+
+```text
+.
+├── apps/web                  # Next.js frontend (buyer/vendor/admin)
+├── services/api              # Go API (domain source of truth)
+├── packages/shared           # Shared TS contracts and Zod schemas
+├── docs
+│   ├── architecture          # System-level architecture docs
+│   ├── api                   # Endpoint and API reference docs
+│   ├── runbooks              # Deployment/release/seed runbooks
+│   └── tracking              # Milestone tracking artifacts
+└── .github/workflows         # CI pipelines
+```
+
+## Local Development
+
+### Prerequisites
+
 - Node.js 22+
 - pnpm 10+
 - Go 1.24+
 
-## Local setup
+### 1) Install dependencies
+
 ```bash
 pnpm install
 ```
 
-### Run API
+### 2) Start API
+
 ```bash
 cd services/api
 go run ./cmd/server
 ```
 
-### Run web
+### 3) Start web app
+
 ```bash
 cd apps/web
 pnpm dev
@@ -53,8 +120,11 @@ Default ports:
 - API: `http://localhost:8080`
 - Web: `http://localhost:3000`
 
-## Environment variables
-### API
+## Environment Variables
+
+<details>
+<summary><strong>API variables</strong></summary>
+
 - `API_ENV` (`development`, `test`, `production`)
 - `API_PORT` (default `8080`)
 - `API_JWT_SECRET`
@@ -74,11 +144,19 @@ Default ports:
 - `API_AUTH_RATE_LIMIT_RPS`
 - `API_AUTH_RATE_LIMIT_BURST`
 
-### Web
+</details>
+
+<details>
+<summary><strong>Web variables</strong></summary>
+
 - `MARKETPLACE_API_BASE_URL` (default `http://localhost:8080/api/v1`)
 
-## Quality gates
+</details>
+
+## Quality Gates
+
 Run before pushing:
+
 ```bash
 pnpm -r lint
 pnpm -r typecheck
@@ -87,39 +165,43 @@ pnpm -r build
 cd services/api && go test ./...
 ```
 
-## Development seed data
+## Seed Data
+
 When API runs with `API_ENV=development`, the service seeds:
 - Verified vendors: `north-studio`, `line-press`
 - Categories: `stationery`, `prints`, `home`
 - Buyer-visible sample products
 
-See `services/api/internal/http/router/seed_catalog.go` and `docs/runbooks/seed-data.md`.
+Reference:
+- `services/api/internal/http/router/seed_catalog.go`
+- `docs/runbooks/seed-data.md`
 
-## CI/CD
-- GitHub Actions CI:
-  - Web lint/typecheck/test/build
-  - API vet/test/lint
-- Web deploy target: Vercel
-- API deploy target: Render
-- API container: `services/api/Dockerfile`
+## CI/CD And Deployment Targets
 
-## Branch and PR policy
-- Branch names:
+- CI workflow: `.github/workflows/ci.yml`
+- Web deployment target: Vercel
+- API deployment target: Render
+- API container image build: `services/api/Dockerfile`
+
+## Branching And PR Rules
+
+- Branch naming patterns:
   - `feat/<area>-<short-scope>`
   - `fix/<area>-<short-scope>`
   - `chore/<area>-<short-scope>`
   - `docs/<area>-<short-scope>`
-- No direct commits to `main` after initialization
-- Every branch merges via PR with:
+- No direct commits to `main` after initialization.
+- Every branch merges through PR with:
   - Scope summary
   - Verification checklist
   - Command outputs
   - Screenshots for UI changes
 
-## Documentation index
+## Documentation Hub
+
 - Docs index: `docs/README.md`
 - Architecture: `docs/architecture/README.md`
-- API: `docs/api/README.md`
+- API docs: `docs/api/README.md`
 - Runbooks: `docs/runbooks/README.md`
 - Design system: `docs/design-system.md`
 - Milestone tracking: `docs/tracking/`
