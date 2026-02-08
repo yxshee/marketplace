@@ -143,5 +143,6 @@ bin/
 *.test
 *.out
 coverage.out
-vendor/
+/vendor/
+services/api/internal/vendor/
 go.work.sum
