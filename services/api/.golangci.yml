@@ -1,5 +1,6 @@
 run:
   timeout: 3m
+  go: "1.22"
 
 linters:
   enable:
