@@ -164,6 +164,68 @@ func TestAuthRegisterLoginMeAndRefreshRotation(t *testing.T) {
 	}
 }
 
+func TestVendorOnboardingSelfServeLifecycle(t *testing.T) {
+	r := mustRouter(t)
+	owner := registerUser(t, r, "vendor-self@example.com")
+
+	before := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/verification-status", nil, owner.AccessToken)
+	if before.Code != http.StatusNotFound {
+		t.Fatalf("expected verification status before registration to be 404, got status=%d body=%s", before.Code, before.Body.String())
+	}
+
+	created := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "north-studio",
+		"display_name": "North Studio",
+	}, owner.AccessToken)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", created.Code, created.Body.String())
+	}
+
+	var createdPayload struct {
+		ID                string `json:"id"`
+		Slug              string `json:"slug"`
+		DisplayName       string `json:"display_name"`
+		VerificationState string `json:"verification_state"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &createdPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if createdPayload.VerificationState != "pending" {
+		t.Fatalf("expected pending verification state, got %s", createdPayload.VerificationState)
+	}
+
+	profile := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/profile", nil, owner.AccessToken)
+	if profile.Code != http.StatusOK {
+		t.Fatalf("vendor profile status=%d body=%s", profile.Code, profile.Body.String())
+	}
+
+	status := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/verification-status", nil, owner.AccessToken)
+	if status.Code != http.StatusOK {
+		t.Fatalf("verification status after registration status=%d body=%s", status.Code, status.Body.String())
+	}
+
+	var statusPayload struct {
+		ID                string `json:"id"`
+		Slug              string `json:"slug"`
+		DisplayName       string `json:"display_name"`
+		VerificationState string `json:"verification_state"`
+	}
+	if err := json.Unmarshal(status.Body.Bytes(), &statusPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if statusPayload.ID != createdPayload.ID || statusPayload.Slug != "north-studio" {
+		t.Fatalf("unexpected vendor profile payload: %#v", statusPayload)
+	}
+
+	duplicate := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "north-studio-two",
+		"display_name": "North Studio Two",
+	}, owner.AccessToken)
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("expected duplicate vendor registration conflict, got status=%d body=%s", duplicate.Code, duplicate.Body.String())
+	}
+}
+
 func TestRBACSupportAndFinanceSegmentation(t *testing.T) {
 	r := mustRouter(t)
 
