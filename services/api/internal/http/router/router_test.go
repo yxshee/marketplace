@@ -2400,6 +2400,150 @@ func TestStripeWebhookRejectsInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestSecurityHeadersAndRequestSizeLimit(t *testing.T) {
+	r := mustRouter(t)
+
+	health := requestJSON(t, r, http.MethodGet, "/health", nil, "")
+	if health.Code != http.StatusOK {
+		t.Fatalf("health status=%d body=%s", health.Code, health.Body.String())
+	}
+	if got := health.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("expected X-Content-Type-Options nosniff, got %q", got)
+	}
+	if got := health.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("expected X-Frame-Options DENY, got %q", got)
+	}
+	if got := health.Header().Get("Referrer-Policy"); got != "no-referrer" {
+		t.Fatalf("expected Referrer-Policy no-referrer, got %q", got)
+	}
+
+	sizeCfg := testConfig()
+	sizeCfg.MaxRequestBodyBytes = 16
+	sizeLimited := mustRouterWithConfig(t, sizeCfg)
+	largeReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/register",
+		strings.NewReader(`{"email":"large@example.com","password":"strong-password"}`),
+	)
+	largeReq.Header.Set("Content-Type", "application/json")
+
+	largeRes := httptest.NewRecorder()
+	sizeLimited.ServeHTTP(largeRes, largeReq)
+	if largeRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected oversized body to be rejected, got status=%d body=%s", largeRes.Code, largeRes.Body.String())
+	}
+}
+
+func TestAuthRateLimitingAppliesToAuthEndpoints(t *testing.T) {
+	cfg := testConfig()
+	cfg.EnableRateLimit = true
+	cfg.GlobalRateLimitRPS = 1000
+	cfg.GlobalRateLimitBurst = 1000
+	cfg.AuthRateLimitRPS = 1
+	cfg.AuthRateLimitBurst = 1
+
+	r := mustRouterWithConfig(t, cfg)
+	requestBody := map[string]string{
+		"email":    "unknown@example.com",
+		"password": "strong-password",
+	}
+
+	hitRateLimit := false
+	for i := 0; i < 4; i++ {
+		res := requestJSON(t, r, http.MethodPost, "/api/v1/auth/login", requestBody, "")
+		if res.Code == http.StatusTooManyRequests {
+			hitRateLimit = true
+			break
+		}
+	}
+	if !hitRateLimit {
+		t.Fatal("expected auth rate limiter to return 429 under burst traffic")
+	}
+}
+
+func TestCatalogAndAdminVendorPaginationValidation(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	r := mustRouterWithConfig(t, cfg)
+
+	invalidCatalogLimit := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products?limit=0", nil, "")
+	if invalidCatalogLimit.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid catalog limit to return 400, got status=%d body=%s", invalidCatalogLimit.Code, invalidCatalogLimit.Body.String())
+	}
+	invalidCatalogRange := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products?price_min=500&price_max=100", nil, "")
+	if invalidCatalogRange.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid catalog price range to return 400, got status=%d body=%s", invalidCatalogRange.Code, invalidCatalogRange.Body.String())
+	}
+
+	validCatalog := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products?limit=1&offset=0", nil, "")
+	if validCatalog.Code != http.StatusOK {
+		t.Fatalf("expected valid catalog pagination status=200, got status=%d body=%s", validCatalog.Code, validCatalog.Body.String())
+	}
+	var catalogPayload struct {
+		Items  []json.RawMessage `json:"items"`
+		Total  int               `json:"total"`
+		Limit  int               `json:"limit"`
+		Offset int               `json:"offset"`
+	}
+	if err := json.Unmarshal(validCatalog.Body.Bytes(), &catalogPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if catalogPayload.Limit != 1 || catalogPayload.Offset != 0 {
+		t.Fatalf("expected catalog pagination metadata limit=1 offset=0, got limit=%d offset=%d", catalogPayload.Limit, catalogPayload.Offset)
+	}
+	if len(catalogPayload.Items) > 1 {
+		t.Fatalf("expected at most 1 catalog item, got %d", len(catalogPayload.Items))
+	}
+
+	admin := registerUser(t, r, "admin@example.com")
+	ownerOne := registerUser(t, r, "vendor-owner-one@example.com")
+	ownerTwo := registerUser(t, r, "vendor-owner-two@example.com")
+
+	firstVendor := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "hardening-vendor-one",
+		"display_name": "Hardening Vendor One",
+	}, ownerOne.AccessToken)
+	if firstVendor.Code != http.StatusCreated {
+		t.Fatalf("register vendor one status=%d body=%s", firstVendor.Code, firstVendor.Body.String())
+	}
+	secondVendor := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "hardening-vendor-two",
+		"display_name": "Hardening Vendor Two",
+	}, ownerTwo.AccessToken)
+	if secondVendor.Code != http.StatusCreated {
+		t.Fatalf("register vendor two status=%d body=%s", secondVendor.Code, secondVendor.Body.String())
+	}
+
+	vendorList := requestJSON(t, r, http.MethodGet, "/api/v1/admin/vendors?limit=1&offset=1", nil, admin.AccessToken)
+	if vendorList.Code != http.StatusOK {
+		t.Fatalf("expected admin vendor list to return 200, got status=%d body=%s", vendorList.Code, vendorList.Body.String())
+	}
+
+	var vendorPayload struct {
+		Items  []json.RawMessage `json:"items"`
+		Total  int               `json:"total"`
+		Limit  int               `json:"limit"`
+		Offset int               `json:"offset"`
+	}
+	if err := json.Unmarshal(vendorList.Body.Bytes(), &vendorPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if vendorPayload.Total < 2 {
+		t.Fatalf("expected total vendors >= 2, got %d", vendorPayload.Total)
+	}
+	if vendorPayload.Limit != 1 || vendorPayload.Offset != 1 {
+		t.Fatalf("expected vendor pagination metadata limit=1 offset=1, got limit=%d offset=%d", vendorPayload.Limit, vendorPayload.Offset)
+	}
+	if len(vendorPayload.Items) != 1 {
+		t.Fatalf("expected vendor list length 1, got %d", len(vendorPayload.Items))
+	}
+
+	invalidVendorLimit := requestJSON(t, r, http.MethodGet, "/api/v1/admin/vendors?limit=0", nil, admin.AccessToken)
+	if invalidVendorLimit.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid vendor limit to return 400, got status=%d body=%s", invalidVendorLimit.Code, invalidVendorLimit.Body.String())
+	}
+}
+
 func createGuestOrderFromSeededCatalog(t *testing.T, r http.Handler, guestToken, idempotencyKey string) string {
 	t.Helper()
 

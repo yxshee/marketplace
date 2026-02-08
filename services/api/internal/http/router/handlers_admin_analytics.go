@@ -98,8 +98,10 @@ type adminVendorAnalyticsItem struct {
 }
 
 type adminAnalyticsVendorsResponse struct {
-	Items []adminVendorAnalyticsItem `json:"items"`
-	Total int                        `json:"total"`
+	Items  []adminVendorAnalyticsItem `json:"items"`
+	Total  int                        `json:"total"`
+	Limit  int                        `json:"limit"`
+	Offset int                        `json:"offset"`
 }
 
 type adminVendorPerformanceStats struct {
@@ -275,6 +277,12 @@ func (a *api) handleAdminAnalyticsRevenue(w http.ResponseWriter, r *http.Request
 }
 
 func (a *api) handleAdminAnalyticsVendors(w http.ResponseWriter, r *http.Request) {
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	vendorList := a.vendorService.List(nil)
 	performance, err := a.buildAdminVendorPerformance(vendorList)
 	if err != nil {
@@ -296,10 +304,14 @@ func (a *api) handleAdminAnalyticsVendors(w http.ResponseWriter, r *http.Request
 		}
 		return items[i].GrossRevenueCents > items[j].GrossRevenueCents
 	})
+	total := len(items)
+	start, end := paginate(total, limit, offset)
 
 	writeJSON(w, http.StatusOK, adminAnalyticsVendorsResponse{
-		Items: items,
-		Total: len(items),
+		Items:  items[start:end],
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
 	})
 }
 

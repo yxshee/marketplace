@@ -93,11 +93,20 @@ func (a *api) handleVendorListProducts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	items := a.catalogService.ListVendorProducts(identity.UserID, registeredVendor.ID)
+	total := len(items)
+	start, end := paginate(total, limit, offset)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"items": items,
-		"total": len(items),
+		"items":  items[start:end],
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
 	})
 }
 
@@ -237,6 +246,11 @@ func (a *api) vendorOwnerContext(w http.ResponseWriter, r *http.Request) (auth.I
 
 func (a *api) handleAdminModerationList(w http.ResponseWriter, r *http.Request) {
 	statusFilter := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("status")))
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	targetStatus := catalog.ProductStatusPendingApproval
 	if statusFilter != "" {
 		switch catalog.ProductStatus(statusFilter) {
@@ -252,9 +266,13 @@ func (a *api) handleAdminModerationList(w http.ResponseWriter, r *http.Request) 
 	}
 
 	items := a.catalogService.ListByStatus(targetStatus)
+	total := len(items)
+	start, end := paginate(total, limit, offset)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"items": items,
-		"total": len(items),
+		"items":  items[start:end],
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
 	})
 }
 
@@ -327,11 +345,32 @@ func (a *api) handleCatalogList(w http.ResponseWriter, r *http.Request) {
 	category := strings.TrimSpace(r.URL.Query().Get("category"))
 	vendorID := strings.TrimSpace(r.URL.Query().Get("vendor"))
 	sortBy := catalog.SortOption(strings.TrimSpace(r.URL.Query().Get("sort")))
-	limit := parseQueryInt(r, "limit", 20)
-	offset := parseQueryInt(r, "offset", 0)
-	priceMin := parseQueryInt64(r, "price_min", 0)
-	priceMax := parseQueryInt64(r, "price_max", 0)
-	minRating := parseQueryFloat64(r, "min_rating", 0)
+	limit, offset, err := parsePagination(r, 20, 100)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	priceMin, err := parseQueryInt64WithBounds(r, "price_min", 0, 0, 9_999_999_999_99)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "price_min must be zero or positive")
+		return
+	}
+	priceMax, err := parseQueryInt64WithBounds(r, "price_max", 0, 0, 9_999_999_999_99)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "price_max must be zero or positive")
+		return
+	}
+	if priceMax > 0 && priceMax < priceMin {
+		writeError(w, http.StatusBadRequest, "price_max must be greater than or equal to price_min")
+		return
+	}
+
+	minRating, err := parseQueryFloat64WithBounds(r, "min_rating", 0, 0, 5)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "min_rating must be between 0 and 5")
+		return
+	}
 
 	result := a.catalogService.Search(catalog.SearchParams{
 		Query:     query,
@@ -389,38 +428,32 @@ func (a *api) handleCatalogCategories(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func parseQueryInt(r *http.Request, key string, fallback int) int {
+func parseQueryInt64WithBounds(r *http.Request, key string, fallback, min, max int64) (int64, error) {
 	raw := strings.TrimSpace(r.URL.Query().Get(key))
 	if raw == "" {
-		return fallback
-	}
-	value, err := strconv.Atoi(raw)
-	if err != nil {
-		return fallback
-	}
-	return value
-}
-
-func parseQueryInt64(r *http.Request, key string, fallback int64) int64 {
-	raw := strings.TrimSpace(r.URL.Query().Get(key))
-	if raw == "" {
-		return fallback
+		return fallback, nil
 	}
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		return fallback
+		return 0, err
 	}
-	return value
+	if value < min || value > max {
+		return 0, errors.New("query int64 out of bounds")
+	}
+	return value, nil
 }
 
-func parseQueryFloat64(r *http.Request, key string, fallback float64) float64 {
+func parseQueryFloat64WithBounds(r *http.Request, key string, fallback, min, max float64) (float64, error) {
 	raw := strings.TrimSpace(r.URL.Query().Get(key))
 	if raw == "" {
-		return fallback
+		return fallback, nil
 	}
 	value, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
-		return fallback
+		return 0, err
 	}
-	return value
+	if value < min || value > max {
+		return 0, errors.New("query float64 out of bounds")
+	}
+	return value, nil
 }

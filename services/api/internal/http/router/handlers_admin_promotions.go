@@ -12,8 +12,10 @@ import (
 )
 
 type adminPromotionListResponse struct {
-	Items []promotions.Promotion `json:"items"`
-	Total int                    `json:"total"`
+	Items  []promotions.Promotion `json:"items"`
+	Total  int                    `json:"total"`
+	Limit  int                    `json:"limit"`
+	Offset int                    `json:"offset"`
 }
 
 type adminPromotionCreateRequest struct {
@@ -34,11 +36,21 @@ type adminPromotionUpdateRequest struct {
 	Active    *bool            `json:"active"`
 }
 
-func (a *api) handleAdminPromotionsList(w http.ResponseWriter, _ *http.Request) {
+func (a *api) handleAdminPromotionsList(w http.ResponseWriter, r *http.Request) {
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	items := a.promotions.List()
+	total := len(items)
+	start, end := paginate(total, limit, offset)
 	writeJSON(w, http.StatusOK, adminPromotionListResponse{
-		Items: items,
-		Total: len(items),
+		Items:  items[start:end],
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
 	})
 }
 

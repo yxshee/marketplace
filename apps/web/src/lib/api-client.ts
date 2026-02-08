@@ -75,6 +75,11 @@ interface RequestOptions {
   accessToken?: string;
 }
 
+export interface PaginationQueryParams {
+  limit?: number;
+  offset?: number;
+}
+
 export interface ApiCallResult<T> {
   payload: T;
   guestToken?: string;
@@ -94,6 +99,17 @@ const toQueryStringFromRecord = <T extends object>(params: T): string => {
 
 const toQueryString = (params: CatalogSearchParams): string => {
   return toQueryStringFromRecord(params);
+};
+
+const normalizePagination = (params: PaginationQueryParams = {}): PaginationQueryParams => {
+  const normalized: PaginationQueryParams = {};
+  if (typeof params.limit === "number" && Number.isFinite(params.limit)) {
+    normalized.limit = Math.min(200, Math.max(1, Math.trunc(params.limit)));
+  }
+  if (typeof params.offset === "number" && Number.isFinite(params.offset)) {
+    normalized.offset = Math.max(0, Math.trunc(params.offset));
+  }
+  return normalized;
 };
 
 const normalizeSearchParams = (params: CatalogSearchParams): CatalogSearchParams => {
@@ -499,8 +515,10 @@ export const getAdminAnalyticsRevenue = async (
 
 export const getAdminAnalyticsVendors = async (
   accessToken: string,
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<AdminAnalyticsVendorsResponse>> => {
-  return fetchJSON<AdminAnalyticsVendorsResponse>("/admin/analytics/vendors", {
+  const suffix = toQueryStringFromRecord(normalizePagination(params));
+  return fetchJSON<AdminAnalyticsVendorsResponse>(`/admin/analytics/vendors${suffix}`, {
     accessToken,
   });
 };
@@ -516,10 +534,12 @@ export const getAdminPaymentSettings = async (
 export const getAdminVendors = async (
   accessToken: string,
   verificationState?: "pending" | "verified" | "rejected" | "suspended",
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<AdminVendorListResponse>> => {
-  const suffix = verificationState
-    ? `?verification_state=${encodeURIComponent(verificationState)}`
-    : "";
+  const suffix = toQueryStringFromRecord({
+    verification_state: verificationState,
+    ...normalizePagination(params),
+  });
   return fetchJSON<AdminVendorListResponse>(`/admin/vendors${suffix}`, {
     accessToken,
   });
@@ -527,8 +547,10 @@ export const getAdminVendors = async (
 
 export const getAdminPromotions = async (
   accessToken: string,
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<AdminPromotionListResponse>> => {
-  return fetchJSON<AdminPromotionListResponse>("/admin/promotions", {
+  const suffix = toQueryStringFromRecord(normalizePagination(params));
+  return fetchJSON<AdminPromotionListResponse>(`/admin/promotions${suffix}`, {
     accessToken,
   });
 };
@@ -597,9 +619,14 @@ export const updateAdminVendorVerification = async (
 export const getAdminModerationProducts = async (
   accessToken: string,
   status: "draft" | "pending_approval" | "approved" | "rejected" = "pending_approval",
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<AdminModerationProductListResponse>> => {
+  const suffix = toQueryStringFromRecord({
+    status,
+    ...normalizePagination(params),
+  });
   return fetchJSON<AdminModerationProductListResponse>(
-    `/admin/moderation/products?status=${encodeURIComponent(status)}`,
+    `/admin/moderation/products${suffix}`,
     {
       accessToken,
     },
@@ -609,8 +636,12 @@ export const getAdminModerationProducts = async (
 export const getAdminOrders = async (
   accessToken: string,
   status?: OrderStatus,
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<AdminOrderListResponse>> => {
-  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+  const suffix = toQueryStringFromRecord({
+    status,
+    ...normalizePagination(params),
+  });
   return fetchJSON<AdminOrderListResponse>(`/admin/orders${suffix}`, {
     accessToken,
   });
@@ -664,8 +695,10 @@ export const updateAdminPaymentSettings = async (
 
 export const getVendorProducts = async (
   accessToken: string,
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<VendorProductListResponse>> => {
-  return fetchJSON<VendorProductListResponse>("/vendor/products", {
+  const suffix = toQueryStringFromRecord(normalizePagination(params));
+  return fetchJSON<VendorProductListResponse>(`/vendor/products${suffix}`, {
     accessToken,
   });
 };
@@ -787,8 +820,10 @@ export const deleteVendorCoupon = async (couponID: string, accessToken: string):
 
 export const getVendorShipments = async (
   accessToken: string,
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<VendorShipmentListResponse>> => {
-  return fetchJSON<VendorShipmentListResponse>("/vendor/shipments", {
+  const suffix = toQueryStringFromRecord(normalizePagination(params));
+  return fetchJSON<VendorShipmentListResponse>(`/vendor/shipments${suffix}`, {
     accessToken,
   });
 };
@@ -818,8 +853,12 @@ export const updateVendorShipmentStatus = async (
 export const getVendorRefundRequests = async (
   accessToken: string,
   status?: "pending" | "approved" | "rejected",
+  params: PaginationQueryParams = {},
 ): Promise<ApiCallResult<VendorRefundRequestListResponse>> => {
-  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+  const suffix = toQueryStringFromRecord({
+    status,
+    ...normalizePagination(params),
+  });
   return fetchJSON<VendorRefundRequestListResponse>(`/vendor/refund-requests${suffix}`, {
     accessToken,
   });

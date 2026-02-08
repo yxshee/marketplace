@@ -11,3 +11,5 @@ require (
 require github.com/stripe/stripe-go/v83 v83.2.1
 
 require github.com/go-pdf/fpdf v0.9.0
+
+require golang.org/x/time v0.14.0 // indirect

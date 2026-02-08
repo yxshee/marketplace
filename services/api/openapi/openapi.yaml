@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.18.0
+  version: 0.19.0
 servers:
   - url: /api/v1
 paths:
@@ -43,14 +43,18 @@ paths:
           name: price_min
           schema:
             type: integer
+            minimum: 0
         - in: query
           name: price_max
           schema:
             type: integer
+            minimum: 0
         - in: query
           name: min_rating
           schema:
             type: number
+            minimum: 0
+            maximum: 5
         - in: query
           name: sort
           schema:
@@ -60,10 +64,13 @@ paths:
           name: limit
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
         - in: query
           name: offset
           schema:
             type: integer
+            minimum: 0
       responses:
         "200":
           description: Visible approved products from verified vendors
@@ -401,6 +408,18 @@ paths:
       summary: List products owned by authenticated vendor
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Vendor product list
@@ -528,6 +547,18 @@ paths:
       summary: List shipments owned by authenticated vendor
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Vendor shipment list
@@ -579,6 +610,17 @@ paths:
           schema:
             type: string
             enum: [pending, approved, rejected]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Vendor refund request list
@@ -669,6 +711,17 @@ paths:
           schema:
             type: string
             enum: [pending, verified, rejected, suspended]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Vendor queue list
@@ -714,6 +767,17 @@ paths:
           schema:
             type: string
             enum: [draft, pending_approval, approved, rejected]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Moderation queue list
@@ -729,6 +793,17 @@ paths:
           schema:
             type: string
             enum: [pending_payment, cod_confirmed, paid, payment_failed]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Admin order operations list
@@ -774,6 +849,18 @@ paths:
       summary: List platform promotions
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Promotion list
@@ -921,6 +1008,18 @@ paths:
       summary: Fetch per-vendor analytics for admin
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Vendor performance analytics
@@ -1108,7 +1207,11 @@ components:
             $ref: "#/components/schemas/AdminPromotion"
         total:
           type: integer
-      required: [items, total]
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [items, total, limit, offset]
 
     AuditLogEntry:
       type: object
@@ -1367,7 +1470,11 @@ components:
             $ref: "#/components/schemas/AdminVendorAnalyticsItem"
         total:
           type: integer
-      required: [items, total]
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [items, total, limit, offset]
 
     AdminPromotionCreateRequest:
       type: object

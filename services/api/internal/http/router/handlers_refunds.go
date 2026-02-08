@@ -78,6 +78,11 @@ func (a *api) handleVendorListRefundRequests(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	statusFilter := strings.TrimSpace(r.URL.Query().Get("status"))
 	items, err := a.refunds.ListVendorRequests(registeredVendor.ID, statusFilter)
@@ -90,10 +95,14 @@ func (a *api) handleVendorListRefundRequests(w http.ResponseWriter, r *http.Requ
 		}
 		return
 	}
+	total := len(items)
+	start, end := paginate(total, limit, offset)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"items": items,
-		"total": len(items),
+		"items":  items[start:end],
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
 	})
 }
 

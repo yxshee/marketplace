@@ -76,6 +76,11 @@ func (a *api) handleVendorVerificationStatus(w http.ResponseWriter, r *http.Requ
 
 func (a *api) handleAdminVendorList(w http.ResponseWriter, r *http.Request) {
 	verificationStateFilter := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("verification_state")))
+	limit, offset, err := parsePagination(r, 50, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	var filter *vendors.VerificationState
 	if verificationStateFilter != "" {
@@ -93,9 +98,13 @@ func (a *api) handleAdminVendorList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := a.vendorService.List(filter)
+	total := len(items)
+	start, end := paginate(total, limit, offset)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"items": items,
-		"total": len(items),
+		"items":  items[start:end],
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
 	})
 }
 
