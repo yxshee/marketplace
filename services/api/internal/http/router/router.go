@@ -12,6 +12,7 @@ import (
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/invoices"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/payments"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
@@ -28,6 +29,7 @@ type api struct {
 	vendorService  *vendors.Service
 	catalogService *catalog.Service
 	commerce       *commerce.Service
+	invoices       *invoices.Service
 	payments       *payments.Service
 	defaultCommBPS int32
 }
@@ -67,6 +69,12 @@ func New(cfg config.Config) (http.Handler, error) {
 		vendorService:  vendors.NewService(),
 		catalogService: catalog.NewService(),
 		commerce:       commerceService,
+		invoices: invoices.NewService(invoices.Config{
+			PlatformName:         "Marketplace Gumroad Inspired",
+			PlatformLegalEntity:  "Marketplace Gumroad Inspired LLC",
+			PlatformSupportEmail: "support@marketplace.local",
+			PlatformAddress:      "Global operations",
+		}),
 		defaultCommBPS: cfg.DefaultCommission,
 		payments: payments.NewService(payments.Config{
 			WebhookSecret: cfg.StripeWebhookSecret,
@@ -115,6 +123,7 @@ func New(cfg config.Config) (http.Handler, error) {
 			buyerFlow.Post("/payments/stripe/intent", apiHandlers.handleStripeCreateIntent)
 			buyerFlow.Post("/payments/cod/confirm", apiHandlers.handleCODConfirmPayment)
 			buyerFlow.Get("/orders/{orderID}", apiHandlers.handleOrderByID)
+			buyerFlow.Get("/invoices/{orderID}/download", apiHandlers.handleInvoiceDownload)
 		})
 
 		v1.Post("/auth/register", apiHandlers.handleAuthRegister)

@@ -644,6 +644,81 @@ func TestCODConfirmFlow(t *testing.T) {
 	}
 }
 
+func TestInvoiceDownloadRequiresConfirmedPayment(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = "development"
+	r := mustRouterWithConfig(t, cfg)
+
+	catalogRes := requestJSON(t, r, http.MethodGet, "/api/v1/catalog/products", nil, "")
+	if catalogRes.Code != http.StatusOK {
+		t.Fatalf("catalog status=%d body=%s", catalogRes.Code, catalogRes.Body.String())
+	}
+
+	var catalogPayload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(catalogRes.Body.Bytes(), &catalogPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(catalogPayload.Items) == 0 {
+		t.Fatal("expected at least one seeded product")
+	}
+
+	guestHeaders := map[string]string{guestTokenHeader: "gst_test_invoice_flow"}
+	addRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+		"product_id": catalogPayload.Items[0].ID,
+		"qty":        1,
+	}, "", guestHeaders)
+	if addRes.Code != http.StatusOK {
+		t.Fatalf("add cart item status=%d body=%s", addRes.Code, addRes.Body.String())
+	}
+
+	orderRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-invoice-order-1",
+	}, "", guestHeaders)
+	if orderRes.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", orderRes.Code, orderRes.Body.String())
+	}
+
+	var orderPayload struct {
+		Order struct {
+			ID string `json:"id"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderRes.Body.Bytes(), &orderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	invoiceBeforePayment := requestJSONWithHeaders(t, r, http.MethodGet, "/api/v1/invoices/"+orderPayload.Order.ID+"/download", nil, "", guestHeaders)
+	if invoiceBeforePayment.Code != http.StatusConflict {
+		t.Fatalf("expected invoice conflict before payment confirmation, got status=%d body=%s", invoiceBeforePayment.Code, invoiceBeforePayment.Body.String())
+	}
+
+	codRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/cod/confirm", map[string]interface{}{
+		"order_id":        orderPayload.Order.ID,
+		"idempotency_key": "idem-invoice-cod-1",
+	}, "", guestHeaders)
+	if codRes.Code != http.StatusCreated {
+		t.Fatalf("cod confirm status=%d body=%s", codRes.Code, codRes.Body.String())
+	}
+
+	invoiceRes := httptest.NewRecorder()
+	invoiceReq := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+orderPayload.Order.ID+"/download", nil)
+	invoiceReq.Header.Set(guestTokenHeader, guestHeaders[guestTokenHeader])
+	r.ServeHTTP(invoiceRes, invoiceReq)
+	if invoiceRes.Code != http.StatusOK {
+		t.Fatalf("invoice download status=%d body=%s", invoiceRes.Code, invoiceRes.Body.String())
+	}
+	if got := invoiceRes.Header().Get("Content-Type"); got != "application/pdf" {
+		t.Fatalf("expected content-type application/pdf, got %s", got)
+	}
+	if !bytes.HasPrefix(invoiceRes.Body.Bytes(), []byte("%PDF")) {
+		t.Fatalf("expected PDF payload prefix, got %q", invoiceRes.Body.String())
+	}
+}
+
 func TestStripeWebhookRejectsInvalidSignature(t *testing.T) {
 	cfg := testConfig()
 	cfg.StripeWebhookSecret = "whsec_router_test"
