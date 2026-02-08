@@ -347,7 +347,7 @@ export interface Order {
   id: string;
   buyer_user_id?: string;
   guest_token?: string;
-  status: string;
+  status: OrderStatus;
   currency: string;
   item_count: number;
   shipment_count: number;
@@ -365,6 +365,13 @@ export interface Order {
 export interface OrderResponse {
   order: Order;
   guest_token?: string;
+}
+
+export type OrderStatus = "pending_payment" | "cod_confirmed" | "paid" | "payment_failed";
+
+export interface AdminOrderListResponse {
+  items: Order[];
+  total: number;
 }
 
 export interface StripeIntentResponse {

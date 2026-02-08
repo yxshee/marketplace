@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.14.0
+  version: 0.15.0
 servers:
   - url: /api/v1
 paths:
@@ -718,6 +718,57 @@ paths:
         "200":
           description: Moderation queue list
 
+  /admin/orders:
+    get:
+      summary: List orders for admin operations
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending_payment, cod_confirmed, paid, payment_failed]
+      responses:
+        "200":
+          description: Admin order operations list
+
+  /admin/orders/{orderID}:
+    get:
+      summary: Get order details for admin operations
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Admin order detail
+
+  /admin/orders/{orderID}/status:
+    patch:
+      summary: Update order status for admin operations
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminOrderStatusUpdateRequest"
+      responses:
+        "200":
+          description: Order status updated
+
   /admin/settings/payments:
     get:
       summary: Fetch platform payment settings
@@ -851,6 +902,14 @@ components:
         cod_enabled:
           type: boolean
       minProperties: 1
+
+    AdminOrderStatusUpdateRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending_payment, cod_confirmed, paid, payment_failed]
+      required: [status]
 
     VendorCreateProductRequest:
       type: object
