@@ -1,5 +1,8 @@
 import type {
   AdminAuditLogListResponse,
+  AdminAnalyticsRevenueResponse,
+  AdminAnalyticsVendorsResponse,
+  AdminDashboardOverviewResponse,
   AdminModerationProductListResponse,
   AdminOrderListResponse,
   AdminPromotion,
@@ -35,6 +38,7 @@ import type {
 } from "@marketplace/shared/contracts/api";
 import {
   adminAuditLogQuerySchema,
+  adminRevenueAnalyticsQuerySchema,
   adminPromotionCreateSchema,
   adminPromotionUpdateSchema,
   adminOrderStatusUpdateSchema,
@@ -439,10 +443,24 @@ export interface AdminAuditLogQueryParams {
   offset?: number;
 }
 
+export interface AdminRevenueAnalyticsQueryParams {
+  days?: number;
+}
+
 const normalizeAdminAuditLogQuery = (
   params: AdminAuditLogQueryParams,
 ): AdminAuditLogQueryParams => {
   const parsed = adminAuditLogQuerySchema.safeParse(params);
+  if (!parsed.success) {
+    return {};
+  }
+  return parsed.data;
+};
+
+const normalizeAdminRevenueAnalyticsQuery = (
+  params: AdminRevenueAnalyticsQueryParams,
+): AdminRevenueAnalyticsQueryParams => {
+  const parsed = adminRevenueAnalyticsQuerySchema.safeParse(params);
   if (!parsed.success) {
     return {};
   }
@@ -456,6 +474,33 @@ export const getAdminAuditLogs = async (
   const normalized = normalizeAdminAuditLogQuery(params);
   const suffix = toQueryStringFromRecord(normalized);
   return fetchJSON<AdminAuditLogListResponse>(`/admin/audit-logs${suffix}`, {
+    accessToken,
+  });
+};
+
+export const getAdminDashboardOverview = async (
+  accessToken: string,
+): Promise<ApiCallResult<AdminDashboardOverviewResponse>> => {
+  return fetchJSON<AdminDashboardOverviewResponse>("/admin/dashboard/overview", {
+    accessToken,
+  });
+};
+
+export const getAdminAnalyticsRevenue = async (
+  accessToken: string,
+  params: AdminRevenueAnalyticsQueryParams = {},
+): Promise<ApiCallResult<AdminAnalyticsRevenueResponse>> => {
+  const normalized = normalizeAdminRevenueAnalyticsQuery(params);
+  const suffix = toQueryStringFromRecord(normalized);
+  return fetchJSON<AdminAnalyticsRevenueResponse>(`/admin/analytics/revenue${suffix}`, {
+    accessToken,
+  });
+};
+
+export const getAdminAnalyticsVendors = async (
+  accessToken: string,
+): Promise<ApiCallResult<AdminAnalyticsVendorsResponse>> => {
+  return fetchJSON<AdminAnalyticsVendorsResponse>("/admin/analytics/vendors", {
     accessToken,
   });
 };

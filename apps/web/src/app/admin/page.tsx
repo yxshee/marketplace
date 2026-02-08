@@ -12,6 +12,9 @@ import {
 } from "@/app/actions/admin";
 import {
   getAdminAuditLogs,
+  getAdminAnalyticsRevenue,
+  getAdminAnalyticsVendors,
+  getAdminDashboardOverview,
   getAdminModerationProducts,
   getAdminOrders,
   getAdminPromotions,
@@ -46,11 +49,19 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
   let adminOrders = [] as Awaited<ReturnType<typeof getAdminOrders>>["payload"]["items"];
   let adminPromotions = [] as Awaited<ReturnType<typeof getAdminPromotions>>["payload"]["items"];
   let adminAuditLogs = [] as Awaited<ReturnType<typeof getAdminAuditLogs>>["payload"]["items"];
+  let adminOverview = null as Awaited<ReturnType<typeof getAdminDashboardOverview>>["payload"] | null;
+  let adminRevenueAnalytics =
+    null as Awaited<ReturnType<typeof getAdminAnalyticsRevenue>>["payload"] | null;
+  let adminVendorAnalytics =
+    [] as Awaited<ReturnType<typeof getAdminAnalyticsVendors>>["payload"]["items"];
   let loadError = false;
 
   if (accessToken) {
     try {
       const [
+        overviewResult,
+        revenueResult,
+        vendorAnalyticsResult,
         pendingResult,
         allResult,
         moderationResult,
@@ -59,6 +70,11 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
         auditLogsResult,
       ] =
         await Promise.all([
+          getAdminDashboardOverview(accessToken),
+          getAdminAnalyticsRevenue(accessToken, {
+            days: 30,
+          }),
+          getAdminAnalyticsVendors(accessToken),
           getAdminVendors(accessToken, "pending"),
           getAdminVendors(accessToken),
           getAdminModerationProducts(accessToken, "pending_approval"),
@@ -68,6 +84,9 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
             limit: 25,
           }),
         ]);
+      adminOverview = overviewResult.payload;
+      adminRevenueAnalytics = revenueResult.payload;
+      adminVendorAnalytics = vendorAnalyticsResult.payload.items;
       pendingVendors = pendingResult.payload.items;
       allVendors = allResult.payload.items;
       moderationProducts = moderationResult.payload.items;
@@ -83,11 +102,9 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
     <div className="space-y-6">
       <header className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Admin</p>
-        <h1 className="font-display text-4xl font-semibold leading-tight">
-          Vendor verification queue
-        </h1>
+        <h1 className="font-display text-4xl font-semibold leading-tight">Operations control</h1>
         <p className="text-sm text-muted">
-          Review vendor onboarding states and apply verification decisions.
+          Monitor marketplace health, operations queues, and platform-level analytics.
         </p>
       </header>
 
@@ -201,6 +218,109 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
             </SurfaceCard>
           ) : (
             <>
+              {adminOverview ? (
+                <SurfaceCard>
+                  <h2 className="font-display text-xl font-semibold">Platform analytics overview</h2>
+                  <p className="mt-1 text-sm text-muted">
+                    Revenue, commissions, and operational queue health for the last update cycle.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-sm border border-border p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted">Revenue</p>
+                      <p className="mt-1 text-lg font-medium text-ink">
+                        ${(adminOverview.platform_revenue_cents / 100).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="rounded-sm border border-border p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted">Commission</p>
+                      <p className="mt-1 text-lg font-medium text-ink">
+                        ${(adminOverview.commission_earned_cents / 100).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="rounded-sm border border-border p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted">Orders</p>
+                      <p className="mt-1 text-lg font-medium text-ink">
+                        {adminOverview.order_volumes.total}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        Paid {adminOverview.order_volumes.paid} · Pending{" "}
+                        {adminOverview.order_volumes.pending_payment}
+                      </p>
+                    </div>
+                    <div className="rounded-sm border border-border p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted">Disputes</p>
+                      <p className="mt-1 text-lg font-medium text-ink">
+                        {adminOverview.disputes.pending_total}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        Total {adminOverview.disputes.refund_requests_total}
+                      </p>
+                    </div>
+                  </div>
+                </SurfaceCard>
+              ) : null}
+
+              {adminRevenueAnalytics ? (
+                <SurfaceCard>
+                  <h2 className="font-display text-xl font-semibold">Revenue trend (30 days)</h2>
+                  <p className="mt-1 text-sm text-muted">
+                    Settled orders {adminRevenueAnalytics.summary.settled_orders_total} · AOV $
+                    {(adminRevenueAnalytics.summary.average_order_value_cents / 100).toFixed(2)}
+                  </p>
+                  <div className="mt-4 grid gap-2">
+                    {adminRevenueAnalytics.points.slice(-7).map((point) => (
+                      <div
+                        className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 rounded-sm border border-border px-2 py-1.5 text-xs"
+                        key={point.date}
+                      >
+                        <span className="text-muted">{point.date}</span>
+                        <span className="text-muted">{point.order_count} orders</span>
+                        <span className="font-medium text-ink">
+                          ${(point.gross_revenue_cents / 100).toFixed(2)}
+                        </span>
+                        <span className="text-muted">
+                          Fee ${(point.commission_earned_cents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </SurfaceCard>
+              ) : null}
+
+              {adminVendorAnalytics.length > 0 ? (
+                <SurfaceCard>
+                  <h2 className="font-display text-xl font-semibold">Vendor performance</h2>
+                  <p className="mt-1 text-sm text-muted">
+                    Ranked by gross revenue with fulfillment and refund indicators.
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    {adminVendorAnalytics.slice(0, 6).map((vendorStats) => (
+                      <article
+                        className="rounded-sm border border-border px-3 py-2 text-sm"
+                        key={vendorStats.vendor_id}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-medium text-ink">{vendorStats.display_name}</p>
+                          <p className="text-xs text-muted">
+                            {vendorStats.verification_state} · Fee {vendorStats.commission_bps} bps
+                          </p>
+                        </div>
+                        <p className="mt-1 text-xs text-muted">
+                          Revenue ${(vendorStats.gross_revenue_cents / 100).toFixed(2)} ·
+                          Commission ${(vendorStats.commission_earned_cents / 100).toFixed(2)} ·
+                          Orders {vendorStats.order_count} ({vendorStats.settled_order_count} settled)
+                        </p>
+                        <p className="mt-1 text-xs text-muted">
+                          Shipments {vendorStats.shipment_count} · Delivered{" "}
+                          {vendorStats.delivered_shipment_count} · Refund pending{" "}
+                          {vendorStats.refund_pending_total}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                </SurfaceCard>
+              ) : null}
+
               <SurfaceCard>
                 <div className="space-y-3">
                   {allVendors.length === 0 ? (

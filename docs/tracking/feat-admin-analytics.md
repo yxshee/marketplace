@@ -1,17 +1,21 @@
 # feat/admin-analytics
 
-Status: Draft PR created for task tracking.
+Status: Ready for review.
 
-## Planned scope
-- Implement the branch scope defined in the marketplace execution plan.
-- Keep changes small, strongly typed, tested, and production-safe.
+## Implemented scope
+- Added admin analytics endpoints for dashboard overview, revenue trend, and vendor performance with RBAC enforcement.
+- Added strict request validation for analytics query params and consistent typed API responses.
+- Added integration coverage for authorization boundaries and analytics calculations.
+- Added shared API contracts, schema support, and web API client methods for admin analytics.
+- Updated admin surface to render platform overview, revenue trend, and vendor performance cards.
+- Updated OpenAPI spec for new admin analytics routes and response models.
 
 ## Completion checklist
-- [ ] Implementation complete
-- [ ] pnpm -r lint
-- [ ] pnpm -r typecheck
-- [ ] pnpm -r test
-- [ ] pnpm -r build
-- [ ] go test ./... (API)
-- [ ] UI screenshots included (if UI changes)
-- [ ] Proof outputs added to PR description
+- [x] Implementation complete
+- [x] pnpm -r lint
+- [x] pnpm -r typecheck
+- [x] pnpm -r test
+- [x] pnpm -r build
+- [x] go test ./... (API)
+- [x] UI screenshots included (if UI changes)
+- [x] Proof outputs added to PR description
