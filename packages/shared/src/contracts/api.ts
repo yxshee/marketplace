@@ -175,6 +175,20 @@ export interface StripeIntentResponse {
   guest_token?: string;
 }
 
+export interface CODPaymentResponse {
+  id: string;
+  order_id: string;
+  method: "cod";
+  status: "pending_collection";
+  provider: "cod";
+  provider_ref: string;
+  amount_cents: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+  guest_token?: string;
+}
+
 export interface StripeWebhookResponse {
   event_id: string;
   processed: boolean;

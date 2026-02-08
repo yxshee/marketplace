@@ -79,6 +79,10 @@ func New(cfg config.Config) (http.Handler, error) {
 				_, ok := commerceService.MarkOrderPaymentFailed(orderID)
 				return ok
 			},
+			MarkOrderCODConfirmed: func(orderID string) bool {
+				_, ok := commerceService.MarkOrderCODConfirmed(orderID)
+				return ok
+			},
 		}),
 	}
 	if cfg.Environment == "development" {
@@ -109,6 +113,7 @@ func New(cfg config.Config) (http.Handler, error) {
 			buyerFlow.Post("/checkout/quote", apiHandlers.handleCheckoutQuote)
 			buyerFlow.Post("/checkout/place-order", apiHandlers.handleCheckoutPlaceOrder)
 			buyerFlow.Post("/payments/stripe/intent", apiHandlers.handleStripeCreateIntent)
+			buyerFlow.Post("/payments/cod/confirm", apiHandlers.handleCODConfirmPayment)
 			buyerFlow.Get("/orders/{orderID}", apiHandlers.handleOrderByID)
 		})
 

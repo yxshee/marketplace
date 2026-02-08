@@ -17,6 +17,7 @@ const first = (value: string | string[] | undefined): string | undefined => {
 export default async function CheckoutConfirmationPage({ searchParams }: ConfirmationPageProps) {
   const params = await searchParams;
   const orderID = first(params.orderId);
+  const paymentMethod = first(params.paymentMethod);
   const paymentStatusParam = first(params.paymentStatus);
   const paymentProviderRef = first(params.paymentProviderRef);
   const flowError = first(params.error);
@@ -106,7 +107,8 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
             <span>{formatUSD(order.total_cents)}</span>
           </div>
           <p className="mt-1 text-xs text-muted">
-            Payment state: {paymentStatusParam ?? order.status}. {paymentProviderRef ? `Reference: ${paymentProviderRef}.` : ""}
+            Payment method: {paymentMethod ?? "unassigned"}. Status: {paymentStatusParam ?? order.status}.{" "}
+            {paymentProviderRef ? `Reference: ${paymentProviderRef}.` : ""}
           </p>
         </div>
       </aside>

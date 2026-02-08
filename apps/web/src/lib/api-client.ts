@@ -1,4 +1,5 @@
 import type {
+  CODPaymentResponse,
   CartResponse,
   CatalogCategoriesResponse,
   CatalogCategory,
@@ -13,6 +14,7 @@ import {
   cartItemMutationSchema,
   cartItemQtySchema,
   catalogSearchSchema,
+  codConfirmPaymentSchema,
   checkoutPlaceOrderSchema,
   stripeCreateIntentSchema,
 } from "@marketplace/shared/schemas/common";
@@ -267,6 +269,18 @@ export const createStripePaymentIntent = async (
 ): Promise<ApiCallResult<StripeIntentResponse>> => {
   const parsed = stripeCreateIntentSchema.parse(input);
   return fetchJSON<StripeIntentResponse>("/payments/stripe/intent", {
+    method: "POST",
+    body: parsed,
+    guestToken,
+  });
+};
+
+export const confirmCODPayment = async (
+  input: { order_id: string; idempotency_key: string },
+  guestToken?: string,
+): Promise<ApiCallResult<CODPaymentResponse>> => {
+  const parsed = codConfirmPaymentSchema.parse(input);
+  return fetchJSON<CODPaymentResponse>("/payments/cod/confirm", {
     method: "POST",
     body: parsed,
     guestToken,
