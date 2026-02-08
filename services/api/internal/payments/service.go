@@ -37,6 +37,7 @@ var (
 	ErrInvalidSignature      = errors.New("invalid stripe webhook signature")
 	ErrInvalidPayload        = errors.New("invalid stripe webhook payload")
 	ErrPaymentNotFound       = errors.New("payment not found")
+	ErrOrderSyncFailed       = errors.New("failed to sync order payment status")
 )
 
 type Config struct {
@@ -388,24 +389,29 @@ func (s *Service) HandleStripeWebhook(payload []byte, signatureHeader string) (W
 		s.mu.Unlock()
 		return WebhookResult{}, ErrPaymentNotFound
 	}
-
 	payment := s.paymentsByID[paymentID]
-	if event.Type == stripeEventIntentSucceeded {
-		payment.Status = PaymentStatusSuccess
-	} else {
-		payment.Status = PaymentStatusFailed
+	s.mu.Unlock()
+
+	nextStatus := PaymentStatusSuccess
+	markOrder := s.markOrderPaid
+	if event.Type == stripeEventIntentFailed {
+		nextStatus = PaymentStatusFailed
+		markOrder = s.markOrderFailed
 	}
+
+	if markOrder != nil {
+		if ok := markOrder(payment.OrderID); !ok {
+			return WebhookResult{}, ErrOrderSyncFailed
+		}
+	}
+
+	s.mu.Lock()
+	payment = s.paymentsByID[paymentID]
+	payment.Status = nextStatus
 	payment.UpdatedAt = s.now()
 	s.paymentsByID[paymentID] = payment
 	s.mu.Unlock()
 	processed = true
-
-	if event.Type == stripeEventIntentSucceeded && s.markOrderPaid != nil {
-		_ = s.markOrderPaid(payment.OrderID)
-	}
-	if event.Type == stripeEventIntentFailed && s.markOrderFailed != nil {
-		_ = s.markOrderFailed(payment.OrderID)
-	}
 
 	return WebhookResult{
 		EventID:       event.ID,
