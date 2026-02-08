@@ -11,6 +11,10 @@ import type {
   OrderResponse,
   PaymentSettingsResponse,
   StripeIntentResponse,
+  VendorCoupon,
+  VendorCouponListResponse,
+  VendorProduct,
+  VendorProductListResponse,
   VendorProfile,
 } from "@marketplace/shared/contracts/api";
 import {
@@ -22,6 +26,10 @@ import {
   checkoutPlaceOrderSchema,
   paymentSettingsUpdateSchema,
   stripeCreateIntentSchema,
+  vendorCouponCreateSchema,
+  vendorCouponUpdateSchema,
+  vendorProductCreateSchema,
+  vendorProductUpdateSchema,
   vendorRegisterSchema,
 } from "@marketplace/shared/schemas/common";
 import { fallbackCategories, fallbackProducts, fallbackVendorNameByID } from "@/lib/catalog-fallback";
@@ -83,8 +91,16 @@ const fetchJSON = async <T>(path: string, options: RequestOptions = {}): Promise
     throw new Error(`api request failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as T;
   const headerGuestToken = response.headers.get(guestTokenHeader) ?? undefined;
+  if (response.status === 204) {
+    return {
+      payload: {} as T,
+      guestToken: headerGuestToken,
+    };
+  }
+
+  const rawBody = await response.text();
+  const payload = rawBody.length > 0 ? (JSON.parse(rawBody) as T) : ({} as T);
   const bodyGuestToken =
     typeof payload === "object" && payload !== null && "guest_token" in payload
       ? (payload as { guest_token?: string }).guest_token
@@ -353,6 +369,119 @@ export const updateAdminPaymentSettings = async (
   return fetchJSON<PaymentSettingsResponse>("/admin/settings/payments", {
     method: "PATCH",
     body: parsed,
+    accessToken,
+  });
+};
+
+export const getVendorProducts = async (accessToken: string): Promise<ApiCallResult<VendorProductListResponse>> => {
+  return fetchJSON<VendorProductListResponse>("/vendor/products", {
+    accessToken,
+  });
+};
+
+export const createVendorProduct = async (
+  input: {
+    title: string;
+    description: string;
+    category_slug?: string;
+    tags?: string[];
+    price_incl_tax_cents: number;
+    currency: string;
+    stock_qty?: number;
+  },
+  accessToken: string,
+): Promise<ApiCallResult<VendorProduct>> => {
+  const parsed = vendorProductCreateSchema.parse(input);
+  return fetchJSON<VendorProduct>("/vendor/products", {
+    method: "POST",
+    body: parsed,
+    accessToken,
+  });
+};
+
+export const updateVendorProduct = async (
+  productID: string,
+  input: {
+    title?: string;
+    description?: string;
+    category_slug?: string;
+    tags?: string[];
+    price_incl_tax_cents?: number;
+    currency?: string;
+    stock_qty?: number;
+  },
+  accessToken: string,
+): Promise<ApiCallResult<VendorProduct>> => {
+  const parsed = vendorProductUpdateSchema.parse(input);
+  return fetchJSON<VendorProduct>(`/vendor/products/${productID}`, {
+    method: "PATCH",
+    body: parsed,
+    accessToken,
+  });
+};
+
+export const deleteVendorProduct = async (productID: string, accessToken: string): Promise<void> => {
+  await fetchJSON<object>(`/vendor/products/${productID}`, {
+    method: "DELETE",
+    accessToken,
+  });
+};
+
+export const submitVendorProductModeration = async (productID: string, accessToken: string): Promise<ApiCallResult<VendorProduct>> => {
+  return fetchJSON<VendorProduct>(`/vendor/products/${productID}/submit-moderation`, {
+    method: "POST",
+    body: {},
+    accessToken,
+  });
+};
+
+export const getVendorCoupons = async (accessToken: string): Promise<ApiCallResult<VendorCouponListResponse>> => {
+  return fetchJSON<VendorCouponListResponse>("/vendor/coupons", {
+    accessToken,
+  });
+};
+
+export const createVendorCoupon = async (
+  input: {
+    code: string;
+    discount_type: "percent" | "amount_cents";
+    discount_value: number;
+    starts_at?: string;
+    ends_at?: string;
+    usage_limit?: number;
+    active?: boolean;
+  },
+  accessToken: string,
+): Promise<ApiCallResult<VendorCoupon>> => {
+  const parsed = vendorCouponCreateSchema.parse(input);
+  return fetchJSON<VendorCoupon>("/vendor/coupons", {
+    method: "POST",
+    body: parsed,
+    accessToken,
+  });
+};
+
+export const updateVendorCoupon = async (
+  couponID: string,
+  input: {
+    code?: string;
+    discount_type?: "percent" | "amount_cents";
+    discount_value?: number;
+    active?: boolean;
+  },
+  accessToken: string,
+): Promise<ApiCallResult<VendorCoupon>> => {
+  const parsed = vendorCouponUpdateSchema.parse(input);
+  return fetchJSON<VendorCoupon>(`/vendor/coupons/${couponID}`, {
+    method: "PATCH",
+    body: parsed,
+    accessToken,
+  });
+};
+
+export const deleteVendorCoupon = async (couponID: string, accessToken: string): Promise<void> => {
+  await fetchJSON<object>(`/vendor/coupons/${couponID}`, {
+    method: "DELETE",
     accessToken,
   });
 };
