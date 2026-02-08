@@ -54,6 +54,8 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
     );
   }
 
+  const invoiceReady = order.status === "paid" || order.status === "cod_confirmed";
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
@@ -114,9 +116,16 @@ export default async function CheckoutConfirmationPage({ searchParams }: Confirm
       </aside>
 
       <footer className="flex items-center justify-between">
-        <Link className="text-sm underline-offset-4 hover:underline" href="/search">
-          Continue shopping
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link className="text-sm underline-offset-4 hover:underline" href="/search">
+            Continue shopping
+          </Link>
+          {invoiceReady ? (
+            <Link className="text-sm underline-offset-4 hover:underline" href={`/api/invoices/${order.id}`}>
+              Download invoice PDF
+            </Link>
+          ) : null}
+        </div>
         <Link className="text-sm underline-offset-4 hover:underline" href="/cart">
           View cart
         </Link>
