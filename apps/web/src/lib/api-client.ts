@@ -16,6 +16,9 @@ import type {
   VendorProduct,
   VendorProductListResponse,
   VendorProfile,
+  VendorShipment,
+  VendorShipmentListResponse,
+  VendorShipmentStatus,
 } from "@marketplace/shared/contracts/api";
 import {
   authCredentialsSchema,
@@ -31,6 +34,7 @@ import {
   vendorProductCreateSchema,
   vendorProductUpdateSchema,
   vendorRegisterSchema,
+  vendorShipmentStatusUpdateSchema,
 } from "@marketplace/shared/schemas/common";
 import { fallbackCategories, fallbackProducts, fallbackVendorNameByID } from "@/lib/catalog-fallback";
 
@@ -482,6 +486,34 @@ export const updateVendorCoupon = async (
 export const deleteVendorCoupon = async (couponID: string, accessToken: string): Promise<void> => {
   await fetchJSON<object>(`/vendor/coupons/${couponID}`, {
     method: "DELETE",
+    accessToken,
+  });
+};
+
+export const getVendorShipments = async (accessToken: string): Promise<ApiCallResult<VendorShipmentListResponse>> => {
+  return fetchJSON<VendorShipmentListResponse>("/vendor/shipments", {
+    accessToken,
+  });
+};
+
+export const getVendorShipmentByID = async (
+  shipmentID: string,
+  accessToken: string,
+): Promise<ApiCallResult<VendorShipment>> => {
+  return fetchJSON<VendorShipment>(`/vendor/shipments/${shipmentID}`, {
+    accessToken,
+  });
+};
+
+export const updateVendorShipmentStatus = async (
+  shipmentID: string,
+  input: { status: VendorShipmentStatus },
+  accessToken: string,
+): Promise<ApiCallResult<VendorShipment>> => {
+  const parsed = vendorShipmentStatusUpdateSchema.parse(input);
+  return fetchJSON<VendorShipment>(`/vendor/shipments/${shipmentID}/status`, {
+    method: "PATCH",
+    body: parsed,
     accessToken,
   });
 };

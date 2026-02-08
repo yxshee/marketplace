@@ -544,6 +544,158 @@ func TestVendorProductsAndCouponsCRUD(t *testing.T) {
 	}
 }
 
+func TestVendorShipmentsListDetailAndStatusUpdate(t *testing.T) {
+	r := mustRouter(t)
+
+	owner := registerUser(t, r, "vendor-shipments-owner@example.com")
+	admin := registerUser(t, r, "admin@example.com")
+	moderator := registerUser(t, r, "moderator@example.com")
+	buyer := registerUser(t, r, "buyer-shipments@example.com")
+
+	vendorCreated := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "vendor-shipments",
+		"display_name": "Vendor Shipments",
+	}, owner.AccessToken)
+	if vendorCreated.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", vendorCreated.Code, vendorCreated.Body.String())
+	}
+
+	var vendorBody struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(vendorCreated.Body.Bytes(), &vendorBody); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	verified := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/vendors/"+vendorBody.ID+"/verification", map[string]string{
+		"state":  "verified",
+		"reason": "kyc complete",
+	}, admin.AccessToken)
+	if verified.Code != http.StatusOK {
+		t.Fatalf("admin verify vendor status=%d body=%s", verified.Code, verified.Body.String())
+	}
+
+	ownerLogin := loginUser(t, r, "vendor-shipments-owner@example.com")
+	createdProduct := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products", map[string]interface{}{
+		"title":                "Shipment Product",
+		"description":          "Product to test shipment flow",
+		"category_slug":        "stationery",
+		"tags":                 []string{"ship"},
+		"price_incl_tax_cents": 2400,
+		"currency":             "USD",
+		"stock_qty":            8,
+	}, ownerLogin.AccessToken)
+	if createdProduct.Code != http.StatusCreated {
+		t.Fatalf("create product status=%d body=%s", createdProduct.Code, createdProduct.Body.String())
+	}
+
+	var product struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(createdProduct.Body.Bytes(), &product); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	submitted := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products/"+product.ID+"/submit-moderation", map[string]string{}, ownerLogin.AccessToken)
+	if submitted.Code != http.StatusOK {
+		t.Fatalf("submit moderation status=%d body=%s", submitted.Code, submitted.Body.String())
+	}
+
+	approved := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/moderation/products/"+product.ID, map[string]string{
+		"decision": "approve",
+	}, moderator.AccessToken)
+	if approved.Code != http.StatusOK {
+		t.Fatalf("approve moderation status=%d body=%s", approved.Code, approved.Body.String())
+	}
+
+	guestHeaders := map[string]string{guestTokenHeader: "gst_vendor_shipments_flow"}
+	addRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+		"product_id": product.ID,
+		"qty":        1,
+	}, "", guestHeaders)
+	if addRes.Code != http.StatusOK {
+		t.Fatalf("add cart item status=%d body=%s", addRes.Code, addRes.Body.String())
+	}
+
+	orderRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-vendor-shipments-order-1",
+	}, "", guestHeaders)
+	if orderRes.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", orderRes.Code, orderRes.Body.String())
+	}
+
+	var orderPayload struct {
+		Order struct {
+			ID string `json:"id"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(orderRes.Body.Bytes(), &orderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	codRes := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/payments/cod/confirm", map[string]interface{}{
+		"order_id":        orderPayload.Order.ID,
+		"idempotency_key": "idem-vendor-shipments-cod-1",
+	}, "", guestHeaders)
+	if codRes.Code != http.StatusCreated {
+		t.Fatalf("cod confirm status=%d body=%s", codRes.Code, codRes.Body.String())
+	}
+
+	listRes := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/shipments", nil, ownerLogin.AccessToken)
+	if listRes.Code != http.StatusOK {
+		t.Fatalf("list shipments status=%d body=%s", listRes.Code, listRes.Body.String())
+	}
+
+	var listPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(listRes.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if listPayload.Total != 1 || len(listPayload.Items) != 1 {
+		t.Fatalf("expected one shipment, got total=%d len=%d", listPayload.Total, len(listPayload.Items))
+	}
+	if listPayload.Items[0].Status != "pending" {
+		t.Fatalf("expected pending shipment status, got %s", listPayload.Items[0].Status)
+	}
+
+	shipmentID := listPayload.Items[0].ID
+	detailRes := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/shipments/"+shipmentID, nil, ownerLogin.AccessToken)
+	if detailRes.Code != http.StatusOK {
+		t.Fatalf("shipment detail status=%d body=%s", detailRes.Code, detailRes.Body.String())
+	}
+
+	updatePacked := requestJSON(t, r, http.MethodPatch, "/api/v1/vendor/shipments/"+shipmentID+"/status", map[string]string{
+		"status": "packed",
+	}, ownerLogin.AccessToken)
+	if updatePacked.Code != http.StatusOK {
+		t.Fatalf("shipment packed status=%d body=%s", updatePacked.Code, updatePacked.Body.String())
+	}
+
+	updateShipped := requestJSON(t, r, http.MethodPatch, "/api/v1/vendor/shipments/"+shipmentID+"/status", map[string]string{
+		"status": "shipped",
+	}, ownerLogin.AccessToken)
+	if updateShipped.Code != http.StatusOK {
+		t.Fatalf("shipment shipped status=%d body=%s", updateShipped.Code, updateShipped.Body.String())
+	}
+
+	invalidTransition := requestJSON(t, r, http.MethodPatch, "/api/v1/vendor/shipments/"+shipmentID+"/status", map[string]string{
+		"status": "pending",
+	}, ownerLogin.AccessToken)
+	if invalidTransition.Code != http.StatusConflict {
+		t.Fatalf("expected invalid transition conflict, got status=%d body=%s", invalidTransition.Code, invalidTransition.Body.String())
+	}
+
+	forbiddenBuyer := requestJSON(t, r, http.MethodGet, "/api/v1/vendor/shipments", nil, buyer.AccessToken)
+	if forbiddenBuyer.Code != http.StatusForbidden {
+		t.Fatalf("expected buyer forbidden for vendor shipments, got status=%d body=%s", forbiddenBuyer.Code, forbiddenBuyer.Body.String())
+	}
+}
+
 func TestCheckoutCreatesMultiShipmentAndIdempotentOrder(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"
