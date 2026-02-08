@@ -1,0 +1,1079 @@
+openapi: 3.1.0
+info:
+  title: Marketplace API
+  version: 0.14.0
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      summary: API health check
+      responses:
+        "200":
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /catalog/categories:
+    get:
+      summary: List buyer-facing catalog categories
+      responses:
+        "200":
+          description: Available categories
+
+  /catalog/products:
+    get:
+      summary: List publicly visible products
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: vendor
+          schema:
+            type: string
+        - in: query
+          name: price_min
+          schema:
+            type: integer
+        - in: query
+          name: price_max
+          schema:
+            type: integer
+        - in: query
+          name: min_rating
+          schema:
+            type: number
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [relevance, newest, price_low_high, price_high_low, rating]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Visible approved products from verified vendors
+
+  /catalog/products/{productID}:
+    get:
+      summary: Get buyer-facing product detail
+      parameters:
+        - in: path
+          name: productID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product detail
+
+  /cart:
+    get:
+      summary: Get actor-scoped cart (buyer session or guest token)
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cart snapshot
+
+  /cart/items:
+    post:
+      summary: Add or replace quantity for a cart item
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartAddItemRequest"
+      responses:
+        "200":
+          description: Updated cart
+
+  /cart/items/{itemID}:
+    patch:
+      summary: Update quantity of an existing cart item
+      parameters:
+        - in: path
+          name: itemID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartUpdateItemRequest"
+      responses:
+        "200":
+          description: Updated cart
+    delete:
+      summary: Remove an item from cart
+      parameters:
+        - in: path
+          name: itemID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated cart
+
+  /checkout/quote:
+    post:
+      summary: Build a multi-shipment checkout quote from current cart
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Checkout quote
+
+  /checkout/place-order:
+    post:
+      summary: Place order from current cart with idempotency key
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutPlaceOrderRequest"
+      responses:
+        "201":
+          description: Order placed
+
+  /orders/{orderID}:
+    get:
+      summary: Fetch actor-owned order by id
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order detail
+
+  /orders/{orderID}/refund-requests:
+    post:
+      summary: Create refund request for an actor-owned order shipment
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuyerCreateRefundRequest"
+      responses:
+        "201":
+          description: Refund request created
+
+  /invoices/{orderID}/download:
+    get:
+      summary: Download invoice PDF for an actor-owned order
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invoice PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /payments/stripe/intent:
+    post:
+      summary: Create Stripe payment intent for a placed order
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeCreateIntentRequest"
+      responses:
+        "201":
+          description: Stripe payment intent created
+
+  /payments/settings:
+    get:
+      summary: Get buyer-facing payment method availability
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payment settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
+
+  /payments/cod/confirm:
+    post:
+      summary: Confirm a cash-on-delivery payment flow for a placed order
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CODConfirmPaymentRequest"
+      responses:
+        "201":
+          description: COD payment confirmation recorded
+
+  /webhooks/stripe:
+    post:
+      summary: Receive Stripe webhook events with signature verification
+      parameters:
+        - in: header
+          name: Stripe-Signature
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Webhook processed
+
+  /auth/register:
+    post:
+      summary: Register a user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "201":
+          description: Account created
+
+  /auth/login:
+    post:
+      summary: Login user and issue tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "200":
+          description: Login success
+
+  /auth/refresh:
+    post:
+      summary: Rotate refresh token and issue new token pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRefreshRequest"
+      responses:
+        "200":
+          description: Token refresh success
+
+  /auth/me:
+    get:
+      summary: Get authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated profile
+
+  /auth/logout:
+    post:
+      summary: Revoke active session
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session revoked
+
+  /vendors/register:
+    post:
+      summary: Register vendor profile for authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Vendor created
+
+  /vendor/verification-status:
+    get:
+      summary: Fetch authenticated vendor verification status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor status
+
+  /vendor/profile:
+    get:
+      summary: Fetch authenticated vendor profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor profile
+
+  /vendor/products:
+    get:
+      summary: List products owned by authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor product list
+    post:
+      summary: Create vendor product draft
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorCreateProductRequest"
+      responses:
+        "201":
+          description: Product created
+
+  /vendor/products/{productID}:
+    patch:
+      summary: Update vendor-owned product
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateProductRequest"
+      responses:
+        "200":
+          description: Product updated
+    delete:
+      summary: Delete vendor-owned product
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productID
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Product deleted
+
+  /vendor/products/{productID}/submit-moderation:
+    post:
+      summary: Submit product for moderation review
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product submitted
+
+  /vendor/coupons:
+    get:
+      summary: List coupons owned by authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor coupon list
+    post:
+      summary: Create vendor coupon
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorCreateCouponRequest"
+      responses:
+        "201":
+          description: Coupon created
+
+  /vendor/coupons/{couponID}:
+    patch:
+      summary: Update vendor coupon
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: couponID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateCouponRequest"
+      responses:
+        "200":
+          description: Coupon updated
+    delete:
+      summary: Delete vendor coupon
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: couponID
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Coupon deleted
+
+  /vendor/shipments:
+    get:
+      summary: List shipments owned by authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor shipment list
+
+  /vendor/shipments/{shipmentID}:
+    get:
+      summary: Get shipment detail for authenticated vendor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: shipmentID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Vendor shipment detail
+
+  /vendor/shipments/{shipmentID}/status:
+    patch:
+      summary: Update shipment status for authenticated vendor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: shipmentID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateShipmentStatusRequest"
+      responses:
+        "200":
+          description: Shipment status updated
+
+  /vendor/refund-requests:
+    get:
+      summary: List refund requests for authenticated vendor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        "200":
+          description: Vendor refund request list
+
+  /vendor/refund-requests/{refundRequestID}/decision:
+    patch:
+      summary: Apply vendor decision to a pending refund request
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: refundRequestID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorRefundDecisionRequest"
+      responses:
+        "200":
+          description: Refund decision applied
+
+  /vendor/analytics/overview:
+    get:
+      summary: Vendor analytics overview metrics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor overview analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorAnalyticsOverviewResponse"
+
+  /vendor/analytics/top-products:
+    get:
+      summary: Top products performance for authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Top product analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorAnalyticsTopProductsResponse"
+
+  /vendor/analytics/coupons:
+    get:
+      summary: Coupon performance for authenticated vendor
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coupon analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorAnalyticsCouponsResponse"
+
+  /admin/vendors/{vendorID}/verification:
+    patch:
+      summary: Update vendor verification state
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: vendorID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Verification updated
+
+  /admin/vendors/{vendorID}/commission:
+    patch:
+      summary: Set vendor commission override in basis points
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: vendorID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Commission updated
+
+  /admin/moderation/products/{productID}:
+    patch:
+      summary: Approve or reject a pending product
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productID
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product moderated
+
+  /admin/settings/payments:
+    get:
+      summary: Fetch platform payment settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
+    patch:
+      summary: Update platform payment settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentSettingsPatchRequest"
+      responses:
+        "200":
+          description: Payment settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [status, service, timestamp]
+
+    AuthRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    AuthRefreshRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+      required: [refresh_token]
+
+    CartAddItemRequest:
+      type: object
+      properties:
+        product_id:
+          type: string
+        qty:
+          type: integer
+          minimum: 1
+      required: [product_id, qty]
+
+    CartUpdateItemRequest:
+      type: object
+      properties:
+        qty:
+          type: integer
+          minimum: 1
+      required: [qty]
+
+    CheckoutPlaceOrderRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+          minLength: 8
+      required: [idempotency_key]
+
+    StripeCreateIntentRequest:
+      type: object
+      properties:
+        order_id:
+          type: string
+        idempotency_key:
+          type: string
+          minLength: 8
+      required: [order_id, idempotency_key]
+
+    CODConfirmPaymentRequest:
+      type: object
+      properties:
+        order_id:
+          type: string
+        idempotency_key:
+          type: string
+          minLength: 8
+      required: [order_id, idempotency_key]
+
+    PaymentSettings:
+      type: object
+      properties:
+        stripe_enabled:
+          type: boolean
+        cod_enabled:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+      required: [stripe_enabled, cod_enabled, updated_at]
+
+    PaymentSettingsPatchRequest:
+      type: object
+      properties:
+        stripe_enabled:
+          type: boolean
+        cod_enabled:
+          type: boolean
+      minProperties: 1
+
+    VendorCreateProductRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category_slug:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        price_incl_tax_cents:
+          type: integer
+        currency:
+          type: string
+        stock_qty:
+          type: integer
+      required: [title, description, price_incl_tax_cents, currency]
+
+    VendorUpdateProductRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category_slug:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        price_incl_tax_cents:
+          type: integer
+        currency:
+          type: string
+        stock_qty:
+          type: integer
+      minProperties: 1
+
+    VendorCreateCouponRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        discount_type:
+          type: string
+          enum: [percent, amount_cents]
+        discount_value:
+          type: integer
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        usage_limit:
+          type: integer
+        active:
+          type: boolean
+      required: [code, discount_type, discount_value]
+
+    VendorUpdateCouponRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        discount_type:
+          type: string
+          enum: [percent, amount_cents]
+        discount_value:
+          type: integer
+        active:
+          type: boolean
+      minProperties: 1
+
+    VendorUpdateShipmentStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, packed, shipped, delivered, cancelled]
+      required: [status]
+
+    BuyerCreateRefundRequest:
+      type: object
+      properties:
+        shipment_id:
+          type: string
+        reason:
+          type: string
+        requested_amount_cents:
+          type: integer
+          minimum: 1
+      required: [shipment_id, reason]
+
+    VendorRefundDecisionRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [approve, reject]
+        decision_reason:
+          type: string
+      required: [decision]
+
+    VendorAnalyticsOverviewResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        revenue_cents:
+          type: integer
+        order_count:
+          type: integer
+        paid_order_count:
+          type: integer
+        shipment_count:
+          type: integer
+        conversion_funnel:
+          $ref: "#/components/schemas/VendorAnalyticsConversionFunnel"
+        refund_stats:
+          $ref: "#/components/schemas/VendorAnalyticsRefundStats"
+      required:
+        [
+          currency,
+          revenue_cents,
+          order_count,
+          paid_order_count,
+          shipment_count,
+          conversion_funnel,
+          refund_stats,
+        ]
+
+    VendorAnalyticsConversionFunnel:
+      type: object
+      properties:
+        orders_total:
+          type: integer
+        orders_paid:
+          type: integer
+        shipments_total:
+          type: integer
+        shipments_shipped:
+          type: integer
+        shipments_delivered:
+          type: integer
+      required: [orders_total, orders_paid, shipments_total, shipments_shipped, shipments_delivered]
+
+    VendorAnalyticsRefundStats:
+      type: object
+      properties:
+        requests_total:
+          type: integer
+        pending_total:
+          type: integer
+        approved_total:
+          type: integer
+        rejected_total:
+          type: integer
+        approval_rate_bps:
+          type: integer
+        order_refund_rate_bps:
+          type: integer
+      required:
+        [
+          requests_total,
+          pending_total,
+          approved_total,
+          rejected_total,
+          approval_rate_bps,
+          order_refund_rate_bps,
+        ]
+
+    VendorAnalyticsTopProductsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorAnalyticsTopProduct"
+        total:
+          type: integer
+      required: [items, total]
+
+    VendorAnalyticsTopProduct:
+      type: object
+      properties:
+        product_id:
+          type: string
+        title:
+          type: string
+        order_count:
+          type: integer
+        units_sold:
+          type: integer
+        revenue_cents:
+          type: integer
+      required: [product_id, title, order_count, units_sold, revenue_cents]
+
+    VendorAnalyticsCouponsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorAnalyticsCouponPerformance"
+        total:
+          type: integer
+      required: [items, total]
+
+    VendorAnalyticsCouponPerformance:
+      type: object
+      properties:
+        coupon_id:
+          type: string
+        code:
+          type: string
+        active:
+          type: boolean
+        discount_type:
+          type: string
+          enum: [percent, amount_cents]
+        discount_value:
+          type: integer
+        usage_count:
+          type: integer
+        discounts_granted_cents:
+          type: integer
+        attributed_revenue_cents:
+          type: integer
+        conversion_rate_bps:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        [
+          coupon_id,
+          code,
+          active,
+          discount_type,
+          discount_value,
+          usage_count,
+          discounts_granted_cents,
+          attributed_revenue_cents,
+          conversion_rate_bps,
+          created_at,
+          updated_at,
+        ]
