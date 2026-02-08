@@ -41,3 +41,8 @@ export const cartItemQtySchema = z.object({
 export const checkoutPlaceOrderSchema = z.object({
   idempotency_key: z.string().trim().min(8).max(128),
 });
+
+export const stripeCreateIntentSchema = z.object({
+  order_id: z.string().trim().min(1),
+  idempotency_key: z.string().trim().min(8).max(128),
+});

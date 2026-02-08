@@ -159,3 +159,27 @@ export interface OrderResponse {
   order: Order;
   guest_token?: string;
 }
+
+export interface StripeIntentResponse {
+  id: string;
+  order_id: string;
+  method: "stripe";
+  status: "pending" | "succeeded" | "failed";
+  provider: "stripe";
+  provider_ref: string;
+  client_secret: string;
+  amount_cents: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+  guest_token?: string;
+}
+
+export interface StripeWebhookResponse {
+  event_id: string;
+  processed: boolean;
+  duplicate: boolean;
+  payment_id?: string;
+  order_id?: string;
+  payment_status?: "pending" | "succeeded" | "failed";
+}
