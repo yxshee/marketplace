@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { addCartItem, deleteCartItem, placeOrder, updateCartItem } from "@/lib/api-client";
+import { addCartItem, createStripePaymentIntent, deleteCartItem, placeOrder, updateCartItem } from "@/lib/api-client";
 
 const guestCookieName = "mkt_guest_token";
 
@@ -115,4 +115,40 @@ export async function placeOrderAction(formData: FormData): Promise<never> {
   }
 
   redirect(`/checkout/confirmation?orderId=${encodeURIComponent(orderID)}`);
+}
+
+export async function placeOrderWithStripeAction(formData: FormData): Promise<never> {
+  const idempotencyKey = String(formData.get("idempotency_key") ?? "").trim();
+  if (!idempotencyKey) {
+    redirect("/checkout?error=missing-idempotency-key");
+  }
+
+  let orderID = "";
+  let guestToken = await readGuestToken();
+  try {
+    const placeOrderResponse = await placeOrder({ idempotency_key: idempotencyKey }, guestToken);
+    guestToken = placeOrderResponse.guestToken ?? guestToken;
+    await persistGuestToken(guestToken);
+    orderID = placeOrderResponse.payload.order.id;
+  } catch {
+    redirect("/checkout?error=place-order-failed");
+  }
+
+  try {
+    const intentResponse = await createStripePaymentIntent(
+      {
+        order_id: orderID,
+        idempotency_key: `pi_${idempotencyKey}`,
+      },
+      guestToken,
+    );
+    await persistGuestToken(intentResponse.guestToken ?? guestToken);
+    revalidatePath("/cart");
+    revalidatePath("/checkout");
+    redirect(
+      `/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentProviderRef=${encodeURIComponent(intentResponse.payload.provider_ref)}&paymentStatus=${encodeURIComponent(intentResponse.payload.status)}`,
+    );
+  } catch {
+    redirect(`/checkout/confirmation?orderId=${encodeURIComponent(orderID)}&paymentStatus=pending&error=stripe-intent-failed`);
+  }
 }

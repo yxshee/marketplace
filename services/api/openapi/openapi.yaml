@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.4.0
+  version: 0.5.0
 servers:
   - url: /api/v1
 paths:
@@ -195,6 +195,43 @@ paths:
       responses:
         "200":
           description: Order detail
+
+  /payments/stripe/intent:
+    post:
+      summary: Create Stripe payment intent for a placed order
+      parameters:
+        - in: header
+          name: X-Guest-Token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeCreateIntentRequest"
+      responses:
+        "201":
+          description: Stripe payment intent created
+
+  /webhooks/stripe:
+    post:
+      summary: Receive Stripe webhook events with signature verification
+      parameters:
+        - in: header
+          name: Stripe-Signature
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Webhook processed
 
   /auth/register:
     post:
@@ -402,3 +439,13 @@ components:
           type: string
           minLength: 8
       required: [idempotency_key]
+
+    StripeCreateIntentRequest:
+      type: object
+      properties:
+        order_id:
+          type: string
+        idempotency_key:
+          type: string
+          minLength: 8
+      required: [order_id, idempotency_key]

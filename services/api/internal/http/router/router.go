@@ -3,6 +3,7 @@ package router
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -11,6 +12,7 @@ import (
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/catalog"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/commerce"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/config"
+	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/payments"
 	"github.com/yxshee/marketplace-gumroad-inspired/services/api/internal/vendors"
 )
 
@@ -26,6 +28,7 @@ type api struct {
 	vendorService  *vendors.Service
 	catalogService *catalog.Service
 	commerce       *commerce.Service
+	payments       *payments.Service
 	defaultCommBPS int32
 }
 
@@ -52,13 +55,31 @@ func New(cfg config.Config) (http.Handler, error) {
 		cfg.CatalogModEmails,
 	))
 
+	var stripeClient payments.StripeClient = payments.NewMockStripeClient()
+	if strings.EqualFold(strings.TrimSpace(cfg.StripeMode), "live") {
+		stripeClient = payments.NewLiveStripeClient(cfg.StripeSecretKey)
+	}
+
+	commerceService := commerce.NewService(500)
 	apiHandlers := &api{
 		authService:    authService,
 		tokenManager:   tokenManager,
 		vendorService:  vendors.NewService(),
 		catalogService: catalog.NewService(),
-		commerce:       commerce.NewService(500),
+		commerce:       commerceService,
 		defaultCommBPS: cfg.DefaultCommission,
+		payments: payments.NewService(payments.Config{
+			WebhookSecret: cfg.StripeWebhookSecret,
+			StripeClient:  stripeClient,
+			MarkOrderPaid: func(orderID string) bool {
+				_, ok := commerceService.MarkOrderPaid(orderID)
+				return ok
+			},
+			MarkOrderPaymentFailed: func(orderID string) bool {
+				_, ok := commerceService.MarkOrderPaymentFailed(orderID)
+				return ok
+			},
+		}),
 	}
 	if cfg.Environment == "development" {
 		apiHandlers.seedDevelopmentCatalog()
@@ -77,6 +98,7 @@ func New(cfg config.Config) (http.Handler, error) {
 		v1.Get("/catalog/categories", apiHandlers.handleCatalogCategories)
 		v1.Get("/catalog/products", apiHandlers.handleCatalogList)
 		v1.Get("/catalog/products/{productID}", apiHandlers.handleCatalogProductDetail)
+		v1.Post("/webhooks/stripe", apiHandlers.handleStripeWebhook)
 
 		v1.Group(func(buyerFlow chi.Router) {
 			buyerFlow.Use(apiHandlers.optionalAuthenticate)
@@ -86,6 +108,7 @@ func New(cfg config.Config) (http.Handler, error) {
 			buyerFlow.Delete("/cart/items/{itemID}", apiHandlers.handleCartDeleteItem)
 			buyerFlow.Post("/checkout/quote", apiHandlers.handleCheckoutQuote)
 			buyerFlow.Post("/checkout/place-order", apiHandlers.handleCheckoutPlaceOrder)
+			buyerFlow.Post("/payments/stripe/intent", apiHandlers.handleStripeCreateIntent)
 			buyerFlow.Get("/orders/{orderID}", apiHandlers.handleOrderByID)
 		})
 

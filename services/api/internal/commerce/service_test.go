@@ -113,3 +113,40 @@ func TestUpdateAndRemoveCartItem(t *testing.T) {
 		t.Fatalf("expected empty cart, got %d", cart.ItemCount)
 	}
 }
+
+func TestMarkOrderPaymentStatuses(t *testing.T) {
+	svc := NewService(500)
+	actor := Actor{GuestToken: "gst_test_payment_status"}
+
+	if _, err := svc.UpsertItem(actor, ProductSnapshot{
+		ID:                    "prd_payment",
+		VendorID:              "ven_payment",
+		Title:                 "Pen Set",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1500,
+		StockQty:              5,
+	}, 1); err != nil {
+		t.Fatalf("UpsertItem() error = %v", err)
+	}
+
+	order, err := svc.PlaceOrder(actor, "idem-payment-status")
+	if err != nil {
+		t.Fatalf("PlaceOrder() error = %v", err)
+	}
+
+	paidOrder, paid := svc.MarkOrderPaid(order.ID)
+	if !paid {
+		t.Fatal("expected order to be marked paid")
+	}
+	if paidOrder.Status != OrderStatusPaid {
+		t.Fatalf("expected order status %s, got %s", OrderStatusPaid, paidOrder.Status)
+	}
+
+	failedOrder, failed := svc.MarkOrderPaymentFailed(order.ID)
+	if !failed {
+		t.Fatal("expected order lookup success")
+	}
+	if failedOrder.Status != OrderStatusPaid {
+		t.Fatalf("expected paid order to remain %s, got %s", OrderStatusPaid, failedOrder.Status)
+	}
+}
