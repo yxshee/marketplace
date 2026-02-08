@@ -202,6 +202,13 @@ func New(cfg config.Config) (http.Handler, error) {
 			})
 
 			private.Group(func(adminRoutes chi.Router) {
+				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManageOrdersOperations))
+				adminRoutes.Get("/admin/orders", apiHandlers.handleAdminOrdersList)
+				adminRoutes.Get("/admin/orders/{orderID}", apiHandlers.handleAdminOrderDetail)
+				adminRoutes.Patch("/admin/orders/{orderID}/status", apiHandlers.handleAdminOrderStatusUpdate)
+			})
+
+			private.Group(func(adminRoutes chi.Router) {
 				adminRoutes.Use(apiHandlers.requirePermission(auth.PermissionManagePaymentSettings))
 				adminRoutes.Get("/admin/settings/payments", apiHandlers.handleAdminPaymentSettingsGet)
 				adminRoutes.Patch("/admin/settings/payments", apiHandlers.handleAdminPaymentSettingsPatch)

@@ -451,6 +451,178 @@ func TestAdminModerationQueueListAndDecision(t *testing.T) {
 	}
 }
 
+func TestAdminOrdersOperationsListDetailAndStatus(t *testing.T) {
+	r := mustRouter(t)
+
+	owner := registerUser(t, r, "admin-orders-owner@example.com")
+	admin := registerUser(t, r, "admin@example.com")
+	support := registerUser(t, r, "support@example.com")
+	finance := registerUser(t, r, "finance@example.com")
+	buyer := registerUser(t, r, "buyer-orders-ops@example.com")
+
+	vendorCreated := requestJSON(t, r, http.MethodPost, "/api/v1/vendors/register", map[string]string{
+		"slug":         "admin-orders-vendor",
+		"display_name": "Admin Orders Vendor",
+	}, owner.AccessToken)
+	if vendorCreated.Code != http.StatusCreated {
+		t.Fatalf("vendor register status=%d body=%s", vendorCreated.Code, vendorCreated.Body.String())
+	}
+
+	var vendorPayload struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(vendorCreated.Body.Bytes(), &vendorPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	verified := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/vendors/"+vendorPayload.ID+"/verification", map[string]string{
+		"state":  "verified",
+		"reason": "verified for admin order operations test",
+	}, admin.AccessToken)
+	if verified.Code != http.StatusOK {
+		t.Fatalf("vendor verify status=%d body=%s", verified.Code, verified.Body.String())
+	}
+
+	ownerLogin := loginUser(t, r, "admin-orders-owner@example.com")
+	createdProduct := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products", map[string]interface{}{
+		"title":                "Admin Orders Product",
+		"description":          "Order operations test product",
+		"category_slug":        "stationery",
+		"tags":                 []string{"orders", "ops"},
+		"price_incl_tax_cents": 2100,
+		"currency":             "USD",
+		"stock_qty":            10,
+	}, ownerLogin.AccessToken)
+	if createdProduct.Code != http.StatusCreated {
+		t.Fatalf("create product status=%d body=%s", createdProduct.Code, createdProduct.Body.String())
+	}
+
+	var product struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(createdProduct.Body.Bytes(), &product); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	submitted := requestJSON(t, r, http.MethodPost, "/api/v1/vendor/products/"+product.ID+"/submit-moderation", map[string]string{}, ownerLogin.AccessToken)
+	if submitted.Code != http.StatusOK {
+		t.Fatalf("submit moderation status=%d body=%s", submitted.Code, submitted.Body.String())
+	}
+
+	approved := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/moderation/products/"+product.ID, map[string]string{
+		"decision": "approve",
+	}, admin.AccessToken)
+	if approved.Code != http.StatusOK {
+		t.Fatalf("approve product status=%d body=%s", approved.Code, approved.Body.String())
+	}
+
+	guestHeaders := map[string]string{
+		"X-Guest-Token": "gst-admin-orders-ops",
+	}
+
+	addToCart := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/cart/items", map[string]interface{}{
+		"product_id": product.ID,
+		"qty":        1,
+	}, "", guestHeaders)
+	if addToCart.Code != http.StatusOK {
+		t.Fatalf("add cart item status=%d body=%s", addToCart.Code, addToCart.Body.String())
+	}
+
+	placeOrder := requestJSONWithHeaders(t, r, http.MethodPost, "/api/v1/checkout/place-order", map[string]interface{}{
+		"idempotency_key": "idem-admin-orders-ops-order-1",
+	}, "", guestHeaders)
+	if placeOrder.Code != http.StatusCreated {
+		t.Fatalf("place order status=%d body=%s", placeOrder.Code, placeOrder.Body.String())
+	}
+
+	var orderPayload struct {
+		Order struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"order"`
+	}
+	if err := json.Unmarshal(placeOrder.Body.Bytes(), &orderPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if orderPayload.Order.Status != "pending_payment" {
+		t.Fatalf("expected pending_payment order status, got %s", orderPayload.Order.Status)
+	}
+
+	supportOrders := requestJSON(t, r, http.MethodGet, "/api/v1/admin/orders", nil, support.AccessToken)
+	if supportOrders.Code != http.StatusOK {
+		t.Fatalf("support list orders status=%d body=%s", supportOrders.Code, supportOrders.Body.String())
+	}
+	var supportOrdersPayload struct {
+		Total int `json:"total"`
+		Items []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(supportOrders.Body.Bytes(), &supportOrdersPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if supportOrdersPayload.Total != 1 || len(supportOrdersPayload.Items) != 1 {
+		t.Fatalf("expected one order in support list, got total=%d len=%d", supportOrdersPayload.Total, len(supportOrdersPayload.Items))
+	}
+	if supportOrdersPayload.Items[0].ID != orderPayload.Order.ID {
+		t.Fatalf("expected order id %s, got %s", orderPayload.Order.ID, supportOrdersPayload.Items[0].ID)
+	}
+
+	pendingFilter := requestJSON(t, r, http.MethodGet, "/api/v1/admin/orders?status=pending_payment", nil, support.AccessToken)
+	if pendingFilter.Code != http.StatusOK {
+		t.Fatalf("pending filter status=%d body=%s", pendingFilter.Code, pendingFilter.Body.String())
+	}
+
+	invalidFilter := requestJSON(t, r, http.MethodGet, "/api/v1/admin/orders?status=invalid", nil, support.AccessToken)
+	if invalidFilter.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid status filter 400, got status=%d body=%s", invalidFilter.Code, invalidFilter.Body.String())
+	}
+
+	orderDetail := requestJSON(t, r, http.MethodGet, "/api/v1/admin/orders/"+orderPayload.Order.ID, nil, support.AccessToken)
+	if orderDetail.Code != http.StatusOK {
+		t.Fatalf("order detail status=%d body=%s", orderDetail.Code, orderDetail.Body.String())
+	}
+
+	financeOrders := requestJSON(t, r, http.MethodGet, "/api/v1/admin/orders", nil, finance.AccessToken)
+	if financeOrders.Code != http.StatusForbidden {
+		t.Fatalf("finance should be forbidden for admin orders ops, got status=%d body=%s", financeOrders.Code, financeOrders.Body.String())
+	}
+
+	buyerOrders := requestJSON(t, r, http.MethodGet, "/api/v1/admin/orders", nil, buyer.AccessToken)
+	if buyerOrders.Code != http.StatusForbidden {
+		t.Fatalf("buyer should be forbidden for admin orders ops, got status=%d body=%s", buyerOrders.Code, buyerOrders.Body.String())
+	}
+
+	invalidStatus := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/orders/"+orderPayload.Order.ID+"/status", map[string]string{
+		"status": "invalid",
+	}, support.AccessToken)
+	if invalidStatus.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid status update 400, got status=%d body=%s", invalidStatus.Code, invalidStatus.Body.String())
+	}
+
+	markedFailed := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/orders/"+orderPayload.Order.ID+"/status", map[string]string{
+		"status": "payment_failed",
+	}, support.AccessToken)
+	if markedFailed.Code != http.StatusOK {
+		t.Fatalf("mark payment_failed status=%d body=%s", markedFailed.Code, markedFailed.Body.String())
+	}
+
+	markedPaid := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/orders/"+orderPayload.Order.ID+"/status", map[string]string{
+		"status": "paid",
+	}, support.AccessToken)
+	if markedPaid.Code != http.StatusOK {
+		t.Fatalf("mark paid status=%d body=%s", markedPaid.Code, markedPaid.Body.String())
+	}
+
+	revertFromPaid := requestJSON(t, r, http.MethodPatch, "/api/v1/admin/orders/"+orderPayload.Order.ID+"/status", map[string]string{
+		"status": "payment_failed",
+	}, support.AccessToken)
+	if revertFromPaid.Code != http.StatusConflict {
+		t.Fatalf("expected paid->payment_failed transition conflict, got status=%d body=%s", revertFromPaid.Code, revertFromPaid.Body.String())
+	}
+}
+
 func TestAdminPaymentSettingsRBACAndEnforcement(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"

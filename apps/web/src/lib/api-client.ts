@@ -1,5 +1,6 @@
 import type {
   AdminModerationProductListResponse,
+  AdminOrderListResponse,
   AdminVendorListResponse,
   AuthResponse,
   BuyerRefundRequestCreateResponse,
@@ -12,6 +13,7 @@ import type {
   CatalogSearchParams,
   CheckoutQuoteResponse,
   OrderResponse,
+  OrderStatus,
   PaymentSettingsResponse,
   StripeIntentResponse,
   VendorRefundDecision,
@@ -29,6 +31,7 @@ import type {
   VendorShipmentStatus,
 } from "@marketplace/shared/contracts/api";
 import {
+  adminOrderStatusUpdateSchema,
   authCredentialsSchema,
   cartItemMutationSchema,
   cartItemQtySchema,
@@ -458,6 +461,38 @@ export const getAdminModerationProducts = async (
       accessToken,
     },
   );
+};
+
+export const getAdminOrders = async (
+  accessToken: string,
+  status?: OrderStatus,
+): Promise<ApiCallResult<AdminOrderListResponse>> => {
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+  return fetchJSON<AdminOrderListResponse>(`/admin/orders${suffix}`, {
+    accessToken,
+  });
+};
+
+export const getAdminOrderByID = async (
+  orderID: string,
+  accessToken: string,
+): Promise<ApiCallResult<OrderResponse>> => {
+  return fetchJSON<OrderResponse>(`/admin/orders/${orderID}`, {
+    accessToken,
+  });
+};
+
+export const updateAdminOrderStatus = async (
+  orderID: string,
+  input: { status: OrderStatus },
+  accessToken: string,
+): Promise<ApiCallResult<OrderResponse>> => {
+  const parsed = adminOrderStatusUpdateSchema.parse(input);
+  return fetchJSON<OrderResponse>(`/admin/orders/${orderID}/status`, {
+    method: "PATCH",
+    body: parsed,
+    accessToken,
+  });
 };
 
 export const updateAdminModerationProduct = async (

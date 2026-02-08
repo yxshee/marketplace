@@ -260,3 +260,91 @@ func TestVendorShipmentListingAndStatusTransitions(t *testing.T) {
 		t.Fatalf("expected shipment id %s, got %s", vendorAShipmentID, fetched.ID)
 	}
 }
+
+func TestAdminOrderOperationsListingAndStatusUpdates(t *testing.T) {
+	svc := NewService(500)
+
+	actorA := Actor{GuestToken: "gst_admin_order_ops_a"}
+	actorB := Actor{GuestToken: "gst_admin_order_ops_b"}
+
+	if _, err := svc.UpsertItem(actorA, ProductSnapshot{
+		ID:                    "prd_admin_a",
+		VendorID:              "ven_admin_a",
+		Title:                 "Admin Order A",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1200,
+		StockQty:              4,
+	}, 1); err != nil {
+		t.Fatalf("UpsertItem() actorA error = %v", err)
+	}
+	orderA, err := svc.PlaceOrder(actorA, "idem-admin-order-a")
+	if err != nil {
+		t.Fatalf("PlaceOrder() actorA error = %v", err)
+	}
+
+	if _, err := svc.UpsertItem(actorB, ProductSnapshot{
+		ID:                    "prd_admin_b",
+		VendorID:              "ven_admin_b",
+		Title:                 "Admin Order B",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1800,
+		StockQty:              4,
+	}, 1); err != nil {
+		t.Fatalf("UpsertItem() actorB error = %v", err)
+	}
+	orderB, err := svc.PlaceOrder(actorB, "idem-admin-order-b")
+	if err != nil {
+		t.Fatalf("PlaceOrder() actorB error = %v", err)
+	}
+	if _, ok := svc.MarkOrderCODConfirmed(orderB.ID); !ok {
+		t.Fatal("expected orderB cod confirmation to succeed")
+	}
+
+	orders, err := svc.ListOrders("")
+	if err != nil {
+		t.Fatalf("ListOrders() error = %v", err)
+	}
+	if len(orders) != 2 {
+		t.Fatalf("expected 2 orders, got %d", len(orders))
+	}
+
+	codOrders, err := svc.ListOrders(OrderStatusCODConfirmed)
+	if err != nil {
+		t.Fatalf("ListOrders(cod_confirmed) error = %v", err)
+	}
+	if len(codOrders) != 1 || codOrders[0].ID != orderB.ID {
+		t.Fatalf("expected one cod_confirmed order %s, got %#v", orderB.ID, codOrders)
+	}
+
+	if _, err := svc.ListOrders("invalid"); err != ErrInvalidOrderStatus {
+		t.Fatalf("expected ErrInvalidOrderStatus, got %v", err)
+	}
+
+	adminOrder, found := svc.GetOrderForAdmin(orderA.ID)
+	if !found {
+		t.Fatal("expected GetOrderForAdmin to find orderA")
+	}
+	if adminOrder.ID != orderA.ID {
+		t.Fatalf("expected order id %s, got %s", orderA.ID, adminOrder.ID)
+	}
+
+	updated, err := svc.UpdateOrderStatus(orderA.ID, OrderStatusPaid)
+	if err != nil {
+		t.Fatalf("UpdateOrderStatus(paid) error = %v", err)
+	}
+	if updated.Status != OrderStatusPaid {
+		t.Fatalf("expected paid status, got %s", updated.Status)
+	}
+
+	if _, err := svc.UpdateOrderStatus(orderA.ID, OrderStatusPaymentFailed); err != ErrOrderStatusTransition {
+		t.Fatalf("expected ErrOrderStatusTransition from paid->payment_failed, got %v", err)
+	}
+
+	if _, err := svc.UpdateOrderStatus(orderA.ID, "invalid"); err != ErrInvalidOrderStatus {
+		t.Fatalf("expected ErrInvalidOrderStatus on update, got %v", err)
+	}
+
+	if _, err := svc.UpdateOrderStatus("missing", OrderStatusPaid); err != ErrOrderNotFound {
+		t.Fatalf("expected ErrOrderNotFound on missing order, got %v", err)
+	}
+}

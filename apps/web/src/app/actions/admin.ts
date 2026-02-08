@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import {
   loginAuthUser,
   registerAuthUser,
+  updateAdminOrderStatus,
   updateAdminModerationProduct,
   updateAdminVendorVerification,
 } from "@/lib/api-client";
@@ -115,6 +116,29 @@ export async function adminModerationDecisionAction(formData: FormData): Promise
   }
 
   redirect("/admin?notice=admin-moderation-updated");
+}
+
+export async function adminOrderStatusAction(formData: FormData): Promise<never> {
+  const accessToken = await requireAdminToken();
+  const orderID = String(formData.get("order_id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim() as
+    | "pending_payment"
+    | "payment_failed"
+    | "cod_confirmed"
+    | "paid";
+
+  if (!orderID) {
+    redirect("/admin?error=admin-order-missing");
+  }
+
+  try {
+    await updateAdminOrderStatus(orderID, { status }, accessToken);
+    revalidatePath("/admin");
+  } catch {
+    redirect("/admin?error=admin-order-status-update-failed");
+  }
+
+  redirect("/admin?notice=admin-order-updated");
 }
 
 export async function adminLogoutAction(): Promise<never> {

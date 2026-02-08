@@ -161,6 +161,17 @@ export const vendorShipmentStatusUpdateSchema = z.object({
   status: vendorShipmentStatusSchema,
 });
 
+export const adminOrderStatusSchema = z.enum([
+  "pending_payment",
+  "cod_confirmed",
+  "paid",
+  "payment_failed",
+]);
+
+export const adminOrderStatusUpdateSchema = z.object({
+  status: adminOrderStatusSchema,
+});
+
 export const refundRequestCreateSchema = z.object({
   shipment_id: z.string().trim().min(1),
   reason: z.string().trim().min(3).max(1000),

@@ -38,6 +38,9 @@ var (
 	ErrShipmentForbidden     = errors.New("shipment access forbidden")
 	ErrInvalidShipmentStatus = errors.New("shipment status is invalid")
 	ErrShipmentTransition    = errors.New("shipment status transition is invalid")
+	ErrOrderNotFound         = errors.New("order not found")
+	ErrInvalidOrderStatus    = errors.New("order status is invalid")
+	ErrOrderStatusTransition = errors.New("order status transition is invalid")
 )
 
 // Actor represents the buyer context for cart and checkout operations.
@@ -497,6 +500,84 @@ func (s *Service) GetOrder(actor Actor, orderID string) (Order, bool, error) {
 	return order, true, nil
 }
 
+// ListOrders returns platform-level order views, optionally filtered by status.
+func (s *Service) ListOrders(statusFilter string) ([]Order, error) {
+	normalizedFilter := normalizeOrderStatus(statusFilter)
+	if normalizedFilter != "" && !isValidOrderStatus(normalizedFilter) {
+		return nil, ErrInvalidOrderStatus
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders := make([]Order, 0, len(s.ordersByID))
+	for _, order := range s.ordersByID {
+		if normalizedFilter != "" && normalizeOrderStatus(order.Status) != normalizedFilter {
+			continue
+		}
+		orders = append(orders, order)
+	}
+
+	sort.Slice(orders, func(i, j int) bool {
+		if orders[i].CreatedAt.Equal(orders[j].CreatedAt) {
+			return orders[i].ID < orders[j].ID
+		}
+		return orders[i].CreatedAt.After(orders[j].CreatedAt)
+	})
+
+	return orders, nil
+}
+
+// GetOrderForAdmin returns an order without buyer/guest scoping checks.
+func (s *Service) GetOrderForAdmin(orderID string) (Order, bool) {
+	normalizedOrderID := strings.TrimSpace(orderID)
+	if normalizedOrderID == "" {
+		return Order{}, false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	order, exists := s.ordersByID[normalizedOrderID]
+	if !exists {
+		return Order{}, false
+	}
+	return order, true
+}
+
+// UpdateOrderStatus applies admin operations status transitions with guardrails.
+func (s *Service) UpdateOrderStatus(orderID, nextStatus string) (Order, error) {
+	normalizedOrderID := strings.TrimSpace(orderID)
+	if normalizedOrderID == "" {
+		return Order{}, ErrOrderNotFound
+	}
+
+	targetStatus := normalizeOrderStatus(nextStatus)
+	if !isValidOrderStatus(targetStatus) {
+		return Order{}, ErrInvalidOrderStatus
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	order, exists := s.ordersByID[normalizedOrderID]
+	if !exists {
+		return Order{}, ErrOrderNotFound
+	}
+
+	currentStatus := normalizeOrderStatus(order.Status)
+	if currentStatus == targetStatus {
+		return order, nil
+	}
+	if !canTransitionOrderStatus(currentStatus, targetStatus) {
+		return Order{}, ErrOrderStatusTransition
+	}
+
+	order.Status = targetStatus
+	s.ordersByID[order.ID] = order
+	return order, nil
+}
+
 // ListVendorShipments returns all shipments that belong to a vendor owner context.
 func (s *Service) ListVendorShipments(vendorID string) ([]VendorShipment, error) {
 	normalizedVendorID := strings.TrimSpace(vendorID)
@@ -687,6 +768,19 @@ func normalizeShipmentStatus(status string) string {
 	return strings.ToLower(strings.TrimSpace(status))
 }
 
+func normalizeOrderStatus(status string) string {
+	return strings.ToLower(strings.TrimSpace(status))
+}
+
+func isValidOrderStatus(status string) bool {
+	switch normalizeOrderStatus(status) {
+	case OrderStatusPendingPayment, OrderStatusCODConfirmed, OrderStatusPaid, OrderStatusPaymentFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 func isValidShipmentStatus(status string) bool {
 	switch normalizeShipmentStatus(status) {
 	case ShipmentStatusPending, ShipmentStatusPacked, ShipmentStatusShipped, ShipmentStatusDelivered, ShipmentStatusCancelled:
@@ -694,6 +788,38 @@ func isValidShipmentStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func canTransitionOrderStatus(current, next string) bool {
+	normalizedCurrent := normalizeOrderStatus(current)
+	normalizedNext := normalizeOrderStatus(next)
+	if normalizedCurrent == normalizedNext {
+		return true
+	}
+
+	allowed := map[string]map[string]bool{
+		OrderStatusPendingPayment: {
+			OrderStatusPaymentFailed: true,
+			OrderStatusCODConfirmed:  true,
+			OrderStatusPaid:          true,
+		},
+		OrderStatusPaymentFailed: {
+			OrderStatusPendingPayment: true,
+			OrderStatusCODConfirmed:   true,
+			OrderStatusPaid:           true,
+		},
+		OrderStatusCODConfirmed: {
+			OrderStatusPaymentFailed: true,
+			OrderStatusPaid:          true,
+		},
+		OrderStatusPaid: {},
+	}
+
+	transitions, exists := allowed[normalizedCurrent]
+	if !exists {
+		return false
+	}
+	return transitions[normalizedNext]
 }
 
 func canTransitionShipmentStatus(current, next string) bool {

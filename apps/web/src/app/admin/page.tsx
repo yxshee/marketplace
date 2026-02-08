@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
 import {
   adminAuthLoginAction,
+  adminOrderStatusAction,
   adminModerationDecisionAction,
   adminAuthRegisterAction,
   adminLogoutAction,
   adminVendorVerificationAction,
 } from "@/app/actions/admin";
-import { getAdminModerationProducts, getAdminVendors } from "@/lib/api-client";
+import { getAdminModerationProducts, getAdminOrders, getAdminVendors } from "@/lib/api-client";
 import { SurfaceCard } from "@/components/ui/surface-card";
 
 const adminTokenCookieName = "mkt_admin_access_token";
@@ -33,18 +34,21 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
   let moderationProducts = [] as Awaited<
     ReturnType<typeof getAdminModerationProducts>
   >["payload"]["items"];
+  let adminOrders = [] as Awaited<ReturnType<typeof getAdminOrders>>["payload"]["items"];
   let loadError = false;
 
   if (accessToken) {
     try {
-      const [pendingResult, allResult, moderationResult] = await Promise.all([
+      const [pendingResult, allResult, moderationResult, ordersResult] = await Promise.all([
         getAdminVendors(accessToken, "pending"),
         getAdminVendors(accessToken),
         getAdminModerationProducts(accessToken, "pending_approval"),
+        getAdminOrders(accessToken),
       ]);
       pendingVendors = pendingResult.payload.items;
       allVendors = allResult.payload.items;
       moderationProducts = moderationResult.payload.items;
+      adminOrders = ordersResult.payload.items;
     } catch {
       loadError = true;
     }
@@ -284,6 +288,63 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
                           type="submit"
                         >
                           Apply
+                        </button>
+                      </form>
+                    </article>
+                  ))}
+                </div>
+              </SurfaceCard>
+
+              <SurfaceCard>
+                <h2 className="font-display text-xl font-semibold">Order operations</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Manage order payment lifecycle states for support operations. Total orders{" "}
+                  {adminOrders.length}.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  {adminOrders.length === 0 ? (
+                    <p className="text-sm text-muted">No orders available yet.</p>
+                  ) : null}
+                  {adminOrders.map((order) => (
+                    <article className="rounded-sm border border-border p-3" key={order.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-medium text-ink">{order.id}</h3>
+                          <p className="mt-1 text-xs text-muted">
+                            Created {new Date(order.created_at).toLocaleString()}
+                          </p>
+                          <p className="mt-1 text-sm text-muted">
+                            Status: <span className="font-medium text-ink">{order.status}</span> ·
+                            Total ${(order.total_cents / 100).toFixed(2)} · Shipments{" "}
+                            {order.shipment_count}
+                          </p>
+                        </div>
+                      </div>
+
+                      <form
+                        action={adminOrderStatusAction}
+                        className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"
+                      >
+                        <input name="order_id" type="hidden" value={order.id} />
+                        <label className="space-y-1 text-xs">
+                          <span>Order status</span>
+                          <select
+                            className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                            defaultValue={order.status}
+                            name="status"
+                          >
+                            <option value="pending_payment">Pending payment</option>
+                            <option value="payment_failed">Payment failed</option>
+                            <option value="cod_confirmed">COD confirmed</option>
+                            <option value="paid">Paid</option>
+                          </select>
+                        </label>
+                        <button
+                          className="self-end rounded-sm border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+                          type="submit"
+                        >
+                          Update
                         </button>
                       </form>
                     </article>
