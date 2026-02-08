@@ -137,3 +137,11 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Go
+bin/
+*.test
+*.out
+coverage.out
+vendor/
+go.work.sum
