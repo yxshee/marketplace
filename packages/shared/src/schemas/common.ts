@@ -76,6 +76,44 @@ export const paymentSettingsUpdateSchema = z
     message: "at least one settings field is required",
   });
 
+export const adminPromotionCreateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  rule_json: z.record(z.string(), z.unknown()).refine((value) => Object.keys(value).length > 0, {
+    message: "rule_json must include at least one rule",
+  }),
+  starts_at: z.string().datetime().optional(),
+  ends_at: z.string().datetime().optional(),
+  stackable: z.boolean().optional(),
+  active: z.boolean().optional(),
+});
+
+export const adminPromotionUpdateSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    rule_json: z
+      .record(z.string(), z.unknown())
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "rule_json must include at least one rule",
+      })
+      .optional(),
+    starts_at: z.string().datetime().optional(),
+    ends_at: z.string().datetime().optional(),
+    stackable: z.boolean().optional(),
+    active: z.boolean().optional(),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.rule_json !== undefined ||
+      value.starts_at !== undefined ||
+      value.ends_at !== undefined ||
+      value.stackable !== undefined ||
+      value.active !== undefined,
+    {
+      message: "at least one field is required",
+    },
+  );
+
 export const vendorProductCreateSchema = z.object({
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().min(2).max(4000),

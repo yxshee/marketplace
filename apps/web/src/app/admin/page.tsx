@@ -1,13 +1,21 @@
 import { cookies } from "next/headers";
 import {
   adminAuthLoginAction,
+  adminPromotionCreateAction,
+  adminPromotionDeleteAction,
+  adminPromotionUpdateAction,
   adminOrderStatusAction,
   adminModerationDecisionAction,
   adminAuthRegisterAction,
   adminLogoutAction,
   adminVendorVerificationAction,
 } from "@/app/actions/admin";
-import { getAdminModerationProducts, getAdminOrders, getAdminVendors } from "@/lib/api-client";
+import {
+  getAdminModerationProducts,
+  getAdminOrders,
+  getAdminPromotions,
+  getAdminVendors,
+} from "@/lib/api-client";
 import { SurfaceCard } from "@/components/ui/surface-card";
 
 const adminTokenCookieName = "mkt_admin_access_token";
@@ -35,20 +43,24 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
     ReturnType<typeof getAdminModerationProducts>
   >["payload"]["items"];
   let adminOrders = [] as Awaited<ReturnType<typeof getAdminOrders>>["payload"]["items"];
+  let adminPromotions = [] as Awaited<ReturnType<typeof getAdminPromotions>>["payload"]["items"];
   let loadError = false;
 
   if (accessToken) {
     try {
-      const [pendingResult, allResult, moderationResult, ordersResult] = await Promise.all([
+      const [pendingResult, allResult, moderationResult, ordersResult, promotionsResult] =
+        await Promise.all([
         getAdminVendors(accessToken, "pending"),
         getAdminVendors(accessToken),
         getAdminModerationProducts(accessToken, "pending_approval"),
         getAdminOrders(accessToken),
+        getAdminPromotions(accessToken),
       ]);
       pendingVendors = pendingResult.payload.items;
       allVendors = allResult.payload.items;
       moderationProducts = moderationResult.payload.items;
       adminOrders = ordersResult.payload.items;
+      adminPromotions = promotionsResult.payload.items;
     } catch {
       loadError = true;
     }
@@ -345,6 +357,169 @@ export default async function AdminSurfacePage({ searchParams }: AdminSurfacePag
                           type="submit"
                         >
                           Update
+                        </button>
+                      </form>
+                    </article>
+                  ))}
+                </div>
+              </SurfaceCard>
+
+              <SurfaceCard>
+                <h2 className="font-display text-xl font-semibold">Promotions management</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Configure platform-wide campaigns managed by finance and super admin roles.
+                </p>
+
+                <form
+                  action={adminPromotionCreateAction}
+                  className="mt-4 grid gap-2 rounded-sm border border-border p-3 md:grid-cols-2"
+                >
+                  <label className="space-y-1 text-xs">
+                    <span>Name</span>
+                    <input
+                      className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                      name="name"
+                      placeholder="Spring checkout boost"
+                      required
+                      type="text"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs">
+                    <span>Rule JSON</span>
+                    <input
+                      className="w-full rounded-sm border border-border px-2 py-1.5 font-mono text-xs outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                      defaultValue='{"type":"percentage","value":10}'
+                      name="rule_json"
+                      required
+                      type="text"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs">
+                    <span>Starts at (ISO, optional)</span>
+                    <input
+                      className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                      name="starts_at"
+                      placeholder="2026-03-01T00:00:00Z"
+                      type="text"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs">
+                    <span>Ends at (ISO, optional)</span>
+                    <input
+                      className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                      name="ends_at"
+                      placeholder="2026-03-31T23:59:59Z"
+                      type="text"
+                    />
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs text-muted">
+                    <input className="h-3.5 w-3.5" name="stackable" type="checkbox" />
+                    Stackable
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs text-muted">
+                    <input className="h-3.5 w-3.5" defaultChecked name="active" type="checkbox" />
+                    Active
+                  </label>
+                  <div className="md:col-span-2">
+                    <button
+                      className="rounded-sm border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+                      type="submit"
+                    >
+                      Create promotion
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-4 space-y-3">
+                  {adminPromotions.length === 0 ? (
+                    <p className="text-sm text-muted">No platform promotions configured yet.</p>
+                  ) : null}
+                  {adminPromotions.map((promotion) => (
+                    <article className="rounded-sm border border-border p-3" key={promotion.id}>
+                      <p className="text-xs text-muted">
+                        {promotion.id} · Updated{" "}
+                        {new Date(promotion.updated_at).toLocaleString(undefined, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </p>
+                      <form
+                        action={adminPromotionUpdateAction}
+                        className="mt-2 grid gap-2 md:grid-cols-2"
+                      >
+                        <input name="promotion_id" type="hidden" value={promotion.id} />
+                        <label className="space-y-1 text-xs">
+                          <span>Name</span>
+                          <input
+                            className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                            defaultValue={promotion.name}
+                            name="name"
+                            required
+                            type="text"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs">
+                          <span>Rule JSON</span>
+                          <input
+                            className="w-full rounded-sm border border-border px-2 py-1.5 font-mono text-xs outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                            defaultValue={JSON.stringify(promotion.rule_json)}
+                            name="rule_json"
+                            required
+                            type="text"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs">
+                          <span>Starts at (ISO)</span>
+                          <input
+                            className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                            defaultValue={promotion.starts_at ?? ""}
+                            name="starts_at"
+                            type="text"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs">
+                          <span>Ends at (ISO)</span>
+                          <input
+                            className="w-full rounded-sm border border-border px-2 py-1.5 outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-black/70"
+                            defaultValue={promotion.ends_at ?? ""}
+                            name="ends_at"
+                            type="text"
+                          />
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-xs text-muted">
+                          <input
+                            className="h-3.5 w-3.5"
+                            defaultChecked={promotion.stackable}
+                            name="stackable"
+                            type="checkbox"
+                          />
+                          Stackable
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-xs text-muted">
+                          <input
+                            className="h-3.5 w-3.5"
+                            defaultChecked={promotion.active}
+                            name="active"
+                            type="checkbox"
+                          />
+                          Active
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+                          <button
+                            className="rounded-sm border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+                            type="submit"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </form>
+                      <form action={adminPromotionDeleteAction} className="mt-2">
+                        <input name="promotion_id" type="hidden" value={promotion.id} />
+                        <button
+                          className="rounded-sm border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+                          type="submit"
+                        >
+                          Delete promotion
                         </button>
                       </form>
                     </article>

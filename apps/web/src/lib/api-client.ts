@@ -1,6 +1,8 @@
 import type {
   AdminModerationProductListResponse,
   AdminOrderListResponse,
+  AdminPromotion,
+  AdminPromotionListResponse,
   AdminVendorListResponse,
   AuthResponse,
   BuyerRefundRequestCreateResponse,
@@ -31,6 +33,8 @@ import type {
   VendorShipmentStatus,
 } from "@marketplace/shared/contracts/api";
 import {
+  adminPromotionCreateSchema,
+  adminPromotionUpdateSchema,
   adminOrderStatusUpdateSchema,
   authCredentialsSchema,
   cartItemMutationSchema,
@@ -435,6 +439,63 @@ export const getAdminVendors = async (
     ? `?verification_state=${encodeURIComponent(verificationState)}`
     : "";
   return fetchJSON<AdminVendorListResponse>(`/admin/vendors${suffix}`, {
+    accessToken,
+  });
+};
+
+export const getAdminPromotions = async (
+  accessToken: string,
+): Promise<ApiCallResult<AdminPromotionListResponse>> => {
+  return fetchJSON<AdminPromotionListResponse>("/admin/promotions", {
+    accessToken,
+  });
+};
+
+export const createAdminPromotion = async (
+  input: {
+    name: string;
+    rule_json: Record<string, unknown>;
+    starts_at?: string;
+    ends_at?: string;
+    stackable?: boolean;
+    active?: boolean;
+  },
+  accessToken: string,
+): Promise<ApiCallResult<AdminPromotion>> => {
+  const parsed = adminPromotionCreateSchema.parse(input);
+  return fetchJSON<AdminPromotion>("/admin/promotions", {
+    method: "POST",
+    body: parsed,
+    accessToken,
+  });
+};
+
+export const updateAdminPromotion = async (
+  promotionID: string,
+  input: {
+    name?: string;
+    rule_json?: Record<string, unknown>;
+    starts_at?: string;
+    ends_at?: string;
+    stackable?: boolean;
+    active?: boolean;
+  },
+  accessToken: string,
+): Promise<ApiCallResult<AdminPromotion>> => {
+  const parsed = adminPromotionUpdateSchema.parse(input);
+  return fetchJSON<AdminPromotion>(`/admin/promotions/${promotionID}`, {
+    method: "PATCH",
+    body: parsed,
+    accessToken,
+  });
+};
+
+export const deleteAdminPromotion = async (
+  promotionID: string,
+  accessToken: string,
+): Promise<void> => {
+  await fetchJSON<object>(`/admin/promotions/${promotionID}`, {
+    method: "DELETE",
     accessToken,
   });
 };
