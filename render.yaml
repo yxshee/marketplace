@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: marketplace-api
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./services/api/Dockerfile
+    dockerContext: ./services/api
+    healthCheckPath: /healthz
+    envVars:
+      - key: API_ENV
+        value: production
+      - key: API_CORS_ALLOW_ORIGINS
+        sync: false
+      - key: API_JWT_SECRET
+        sync: false
+      - key: API_JWT_ISSUER
+        value: marketplace-api
+      - key: API_STRIPE_MODE
+        value: live
+      - key: API_STRIPE_SECRET_KEY
+        sync: false
+      - key: API_STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: API_SUPER_ADMIN_EMAILS
+        sync: false
+      - key: API_SUPPORT_EMAILS
+        sync: false
+      - key: API_FINANCE_EMAILS
+        sync: false
+      - key: API_CATALOG_MOD_EMAILS
+        sync: false
+

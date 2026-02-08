@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Port                 string
 	Environment          string
+	CORSAllowOrigins     string
 	JWTSecret            string
 	JWTIssuer            string
 	AccessTokenTTL       time.Duration
@@ -79,14 +80,25 @@ func getenvDurationSeconds(key string, fallbackSeconds int) time.Duration {
 	return time.Duration(getenvIntOrDefault(key, fallbackSeconds)) * time.Second
 }
 
+func getenvFirstNonEmpty(fallback string, keys ...string) string {
+	for _, key := range keys {
+		value := strings.TrimSpace(os.Getenv(key))
+		if value != "" {
+			return value
+		}
+	}
+	return fallback
+}
+
 // Load reads config from env vars with safe defaults for local development.
 func Load() Config {
 	environment := getenvOrDefault("API_ENV", "development")
 	enableRateLimitDefault := !strings.EqualFold(environment, "test")
 
 	return Config{
-		Port:                 getenvOrDefault("API_PORT", "8080"),
+		Port:                 getenvFirstNonEmpty("8080", "API_PORT", "PORT"),
 		Environment:          environment,
+		CORSAllowOrigins:     getenvOrDefault("API_CORS_ALLOW_ORIGINS", "http://localhost:3000,http://localhost:3001"),
 		JWTSecret:            getenvOrDefault("API_JWT_SECRET", "local-dev-jwt-secret-change-me"),
 		JWTIssuer:            getenvOrDefault("API_JWT_ISSUER", "marketplace-api"),
 		AccessTokenTTL:       getenvDurationSeconds("API_ACCESS_TOKEN_TTL_SECONDS", 900),
