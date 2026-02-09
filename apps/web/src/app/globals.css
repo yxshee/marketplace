@@ -6,14 +6,19 @@
 
 :root {
   color-scheme: light;
-  --canvas: #fbf8ff;
+  --bg: #fbf8ff;
+  --bg-muted: #f6f2ff;
   --surface: #ffffff;
-  --surface-soft: #f4efff;
-  --ink: #1c1828;
-  --muted: #6d6881;
+  --surface-2: #f4efff;
+  --text: #1c1828;
+  --text-muted: #6d6881;
   --border: #ddd6ec;
   --border-strong: #c5bbdd;
-  --accent: #5967ff;
+  --ring: #5967ff;
+  --primary: #5967ff;
+  --primary-foreground: #ffffff;
+  --accent: #ef4a9f;
+  --accent-foreground: #ffffff;
 
   --brand-50: #fff0fa;
   --brand-100: #ffd8ef;
@@ -29,9 +34,14 @@
   --accent-500: #5967ff;
   --accent-600: #4653e0;
 
-  --success-500: #2ea66d;
-  --warning-500: #dc9f1f;
-  --danger-500: #d94967;
+  --success: #2ea66d;
+  --warning: #dc9f1f;
+  --danger: #d94967;
+
+  --chart-1: #5967ff;
+  --chart-2: #ef4a9f;
+  --chart-3: #2ea66d;
+  --chart-4: #dc9f1f;
 
   --shadow-soft: 0 1px 2px rgba(22, 18, 35, 0.05);
   --shadow-card: 0 1px 0 rgba(20, 16, 34, 0.06), 0 12px 30px -24px rgba(43, 29, 77, 0.32);
@@ -43,12 +53,91 @@
   --radius-md: 16px;
   --radius-lg: 22px;
 
-  --focus-ring: 0 0 0 3px rgba(89, 103, 255, 0.26);
+  --focus-ring: 0 0 0 3px rgba(89, 103, 255, 0.3);
+  --bg-spot-1: rgba(255, 170, 217, 0.3);
+  --bg-spot-2: rgba(157, 168, 255, 0.24);
+
+  /* Compatibility aliases used by existing utility classes. */
+  --canvas: var(--bg);
+  --surface-soft: var(--surface-2);
+  --ink: var(--text);
+  --muted: var(--text-muted);
+  --success-500: var(--success);
+  --warning-500: var(--warning);
+  --danger-500: var(--danger);
 }
 
-:root[data-surface-mode="tinted"] {
-  --canvas: #f6f2ff;
-  --surface-soft: #eee8ff;
+.dark {
+  color-scheme: dark;
+  --bg: #100d18;
+  --bg-muted: #17122a;
+  --surface: #18122b;
+  --surface-2: #211935;
+  --text: #faf7ff;
+  --text-muted: #d6cee9;
+  --border: #766a98;
+  --border-strong: #8d81b1;
+  --ring: #98a2ff;
+  --primary: #8b95ff;
+  --primary-foreground: #0f1324;
+  --accent: #ff6dbe;
+  --accent-foreground: #2a1020;
+
+  --brand-50: #2c2138;
+  --brand-100: #39284a;
+  --brand-200: #4a3360;
+  --brand-300: #5d3d76;
+  --brand-400: #784b95;
+  --brand-500: #ff6dbe;
+  --brand-600: #ff84c9;
+  --brand-700: #ff9fd4;
+
+  --accent-100: #202548;
+  --accent-300: #525da8;
+  --accent-500: #8b95ff;
+  --accent-600: #a5adff;
+
+  --success: #46c98a;
+  --warning: #f1b746;
+  --danger: #f06a84;
+
+  --chart-1: #8b95ff;
+  --chart-2: #ff6dbe;
+  --chart-3: #46c98a;
+  --chart-4: #f1b746;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.26), 0 16px 36px -24px rgba(0, 0, 0, 0.6);
+  --shadow-float: 0 18px 42px -24px rgba(0, 0, 0, 0.66);
+  --shadow-glow: 0 20px 42px -28px rgba(255, 109, 190, 0.5);
+
+  --focus-ring: 0 0 0 3px rgba(152, 162, 255, 0.36);
+  --bg-spot-1: rgba(255, 109, 190, 0.08);
+  --bg-spot-2: rgba(139, 149, 255, 0.1);
+
+  --canvas: var(--bg);
+  --surface-soft: var(--surface-2);
+  --ink: var(--text);
+  --muted: var(--text-muted);
+  --success-500: var(--success);
+  --warning-500: var(--warning);
+  --danger-500: var(--danger);
+}
+
+/* In dark mode, elevate muted text contrast inside lighter surface containers. */
+.dark :is(.surface-card, .surface-soft, .bg-surface, .bg-surface-2) {
+  color: var(--text);
+  --text-muted: #f4efff;
+}
+
+:root:not(.dark) body[data-surface-mode="tinted"] {
+  --bg: #f6f2ff;
+  --bg-muted: #eee8ff;
+}
+
+.dark body[data-surface-mode="tinted"] {
+  --bg: #140f1f;
+  --bg-muted: #1b1630;
 }
 
 * {
@@ -64,14 +153,16 @@ body {
 
 body {
   background:
-    radial-gradient(circle at 12% -8%, rgba(255, 170, 217, 0.3), transparent 34%),
-    radial-gradient(circle at 88% 2%, rgba(157, 168, 255, 0.24), transparent 30%),
-    var(--canvas);
-  color: var(--ink);
+    radial-gradient(circle at 12% -8%, var(--bg-spot-1), transparent 34%),
+    radial-gradient(circle at 88% 2%, var(--bg-spot-2), transparent 30%),
+    var(--bg);
+  color: var(--text);
   font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
   line-height: 1.45;
   letter-spacing: -0.01em;
-  text-rendering: geometricPrecision;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1,
@@ -81,12 +172,12 @@ h4,
 h5,
 h6 {
   font-family: "Sora", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  color: var(--ink);
+  color: var(--text);
   letter-spacing: -0.02em;
 }
 
 p {
-  color: var(--muted);
+  color: var(--text);
 }
 
 a {
@@ -96,13 +187,32 @@ a {
 
 ::selection {
   background: var(--accent-100);
-  color: var(--ink);
+  color: var(--text);
 }
 
 :focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-xs);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+select,
+textarea {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+select option {
+  background-color: var(--surface);
+  color: var(--text);
 }
 
 @layer components {
