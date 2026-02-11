@@ -2080,6 +2080,56 @@ func TestCheckoutCreatesMultiShipmentAndIdempotentOrder(t *testing.T) {
 	}
 }
 
+func TestSeedCatalogRunsOnlyInDevelopment(t *testing.T) {
+	prodCfg := testConfig()
+	prodCfg.Environment = "production"
+	prodRouter := mustRouterWithConfig(t, prodCfg)
+
+	prodCatalog := requestJSON(t, prodRouter, http.MethodGet, "/api/v1/catalog/products", nil, "")
+	if prodCatalog.Code != http.StatusOK {
+		t.Fatalf("production catalog status=%d body=%s", prodCatalog.Code, prodCatalog.Body.String())
+	}
+
+	var prodPayload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(prodCatalog.Body.Bytes(), &prodPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if prodPayload.Total != 0 || len(prodPayload.Items) != 0 {
+		t.Fatalf(
+			"expected no seeded catalog data outside development, got total=%d items=%d",
+			prodPayload.Total,
+			len(prodPayload.Items),
+		)
+	}
+
+	devCfg := testConfig()
+	devCfg.Environment = "development"
+	devRouter := mustRouterWithConfig(t, devCfg)
+
+	devCatalog := requestJSON(t, devRouter, http.MethodGet, "/api/v1/catalog/products", nil, "")
+	if devCatalog.Code != http.StatusOK {
+		t.Fatalf("development catalog status=%d body=%s", devCatalog.Code, devCatalog.Body.String())
+	}
+
+	var devPayload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(devCatalog.Body.Bytes(), &devPayload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if devPayload.Total == 0 || len(devPayload.Items) == 0 {
+		t.Fatalf("expected seeded data in development, got total=%d items=%d", devPayload.Total, len(devPayload.Items))
+	}
+}
+
 func TestStripeIntentAndWebhookFlow(t *testing.T) {
 	cfg := testConfig()
 	cfg.Environment = "development"
@@ -2415,6 +2465,14 @@ func TestSecurityHeadersAndRequestSizeLimit(t *testing.T) {
 	}
 	if got := health.Header().Get("Referrer-Policy"); got != "no-referrer" {
 		t.Fatalf("expected Referrer-Policy no-referrer, got %q", got)
+	}
+
+	healthz := requestJSON(t, r, http.MethodGet, "/api/v1/healthz", nil, "")
+	if healthz.Code != http.StatusOK {
+		t.Fatalf("healthz status=%d body=%s", healthz.Code, healthz.Body.String())
+	}
+	if got := healthz.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("expected /api/v1/healthz X-Content-Type-Options nosniff, got %q", got)
 	}
 
 	sizeCfg := testConfig()

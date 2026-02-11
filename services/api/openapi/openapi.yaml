@@ -16,6 +16,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
 
+  /healthz:
+    get:
+      summary: API health check alias
+      responses:
+        "200":
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
   /catalog/categories:
     get:
       summary: List buyer-facing catalog categories

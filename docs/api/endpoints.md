@@ -4,6 +4,7 @@ Base path: `/api/v1`
 
 ## Public + Auth
 - `GET /health`
+- `GET /healthz`
 - `GET /catalog/categories`
 - `GET /catalog/products`
 - `GET /catalog/products/{productID}`
