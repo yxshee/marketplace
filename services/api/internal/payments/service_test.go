@@ -42,6 +42,42 @@ func TestCreateStripeIntentIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestCreateStripeIntentSameIdempotencyKeyAcrossDifferentOrders(t *testing.T) {
+	svc := NewService(Config{
+		WebhookSecret: "whsec_test_secret",
+		StripeClient:  NewMockStripeClient(),
+	})
+
+	orderA := commerce.Order{
+		ID:         "ord_scope_a",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 4200,
+		Currency:   "USD",
+	}
+	orderB := commerce.Order{
+		ID:         "ord_scope_b",
+		Status:     commerce.OrderStatusPendingPayment,
+		TotalCents: 6200,
+		Currency:   "USD",
+	}
+
+	intentA, err := svc.CreateStripeIntent(context.Background(), orderA, "idem-shared")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() orderA error = %v", err)
+	}
+	intentB, err := svc.CreateStripeIntent(context.Background(), orderB, "idem-shared")
+	if err != nil {
+		t.Fatalf("CreateStripeIntent() orderB error = %v", err)
+	}
+
+	if intentA.ID == intentB.ID {
+		t.Fatalf("expected separate intents per order scope, got duplicate payment id %s", intentA.ID)
+	}
+	if intentA.OrderID != orderA.ID || intentB.OrderID != orderB.ID {
+		t.Fatalf("unexpected order linkage intentA=%s intentB=%s", intentA.OrderID, intentB.OrderID)
+	}
+}
+
 func TestStripeWebhookSignatureAndIdempotency(t *testing.T) {
 	var markedPaid []string
 	svc := NewService(Config{

@@ -77,6 +77,225 @@ func TestQuoteAndPlaceOrderMultiShipmentWithIdempotency(t *testing.T) {
 	}
 }
 
+func TestPlaceOrderSingleVendorProducesOneShipment(t *testing.T) {
+	svc := NewService(500)
+	actor := Actor{GuestToken: "gst_test_single_vendor"}
+
+	if _, err := svc.UpsertItem(actor, ProductSnapshot{
+		ID:                    "prd_single_a",
+		VendorID:              "ven_single",
+		Title:                 "Notebook",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1200,
+		StockQty:              10,
+	}, 2); err != nil {
+		t.Fatalf("UpsertItem() first error = %v", err)
+	}
+	if _, err := svc.UpsertItem(actor, ProductSnapshot{
+		ID:                    "prd_single_b",
+		VendorID:              "ven_single",
+		Title:                 "Pen Set",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 800,
+		StockQty:              8,
+	}, 1); err != nil {
+		t.Fatalf("UpsertItem() second error = %v", err)
+	}
+
+	quote, err := svc.Quote(actor)
+	if err != nil {
+		t.Fatalf("Quote() error = %v", err)
+	}
+	if quote.ShipmentCount != 1 {
+		t.Fatalf("expected 1 shipment, got %d", quote.ShipmentCount)
+	}
+	if len(quote.Shipments) != 1 {
+		t.Fatalf("expected exactly 1 quote shipment entry, got %d", len(quote.Shipments))
+	}
+
+	order, err := svc.PlaceOrder(actor, "idem-single-vendor")
+	if err != nil {
+		t.Fatalf("PlaceOrder() error = %v", err)
+	}
+	if order.ShipmentCount != 1 {
+		t.Fatalf("expected 1 order shipment, got %d", order.ShipmentCount)
+	}
+	if len(order.Shipments) != 1 {
+		t.Fatalf("expected 1 shipment in order payload, got %d", len(order.Shipments))
+	}
+
+	shipment := order.Shipments[0]
+	if shipment.VendorID != "ven_single" {
+		t.Fatalf("expected shipment vendor ven_single, got %s", shipment.VendorID)
+	}
+	if shipment.TotalCents != order.TotalCents {
+		t.Fatalf("expected shipment total %d to match order total %d", shipment.TotalCents, order.TotalCents)
+	}
+	if shipment.SubtotalCents+shipment.ShippingFeeCents != shipment.TotalCents {
+		t.Fatalf(
+			"expected shipment subtotal + shipping = total, got %d + %d != %d",
+			shipment.SubtotalCents,
+			shipment.ShippingFeeCents,
+			shipment.TotalCents,
+		)
+	}
+}
+
+func TestCheckoutEdgeCases(t *testing.T) {
+	t.Run("empty cart quote and place order", func(t *testing.T) {
+		svc := NewService(500)
+		actor := Actor{GuestToken: "gst_test_empty_cart"}
+
+		if _, err := svc.Quote(actor); err != ErrCartEmpty {
+			t.Fatalf("expected ErrCartEmpty from Quote(), got %v", err)
+		}
+		if _, err := svc.PlaceOrder(actor, "idem-empty-cart"); err != ErrCartEmpty {
+			t.Fatalf("expected ErrCartEmpty from PlaceOrder(), got %v", err)
+		}
+	})
+
+	t.Run("invalid sku product snapshot", func(t *testing.T) {
+		svc := NewService(500)
+		actor := Actor{GuestToken: "gst_test_invalid_product"}
+
+		if _, err := svc.UpsertItem(actor, ProductSnapshot{
+			ID:                    "",
+			VendorID:              "ven_invalid",
+			Title:                 "Broken",
+			Currency:              "USD",
+			UnitPriceInclTaxCents: 1000,
+			StockQty:              1,
+		}, 1); err != ErrInvalidProduct {
+			t.Fatalf("expected ErrInvalidProduct, got %v", err)
+		}
+	})
+
+	t.Run("zero quantity", func(t *testing.T) {
+		svc := NewService(500)
+		actor := Actor{GuestToken: "gst_test_zero_qty"}
+
+		if _, err := svc.UpsertItem(actor, ProductSnapshot{
+			ID:                    "prd_zero_qty",
+			VendorID:              "ven_zero_qty",
+			Title:                 "Notebook",
+			Currency:              "USD",
+			UnitPriceInclTaxCents: 1000,
+			StockQty:              10,
+		}, 0); err != ErrInvalidQuantity {
+			t.Fatalf("expected ErrInvalidQuantity, got %v", err)
+		}
+	})
+
+	t.Run("negative quantity", func(t *testing.T) {
+		svc := NewService(500)
+		actor := Actor{GuestToken: "gst_test_negative_qty"}
+
+		if _, err := svc.UpsertItem(actor, ProductSnapshot{
+			ID:                    "prd_negative_qty",
+			VendorID:              "ven_negative_qty",
+			Title:                 "Notebook",
+			Currency:              "USD",
+			UnitPriceInclTaxCents: 1000,
+			StockQty:              10,
+		}, -1); err != ErrInvalidQuantity {
+			t.Fatalf("expected ErrInvalidQuantity, got %v", err)
+		}
+	})
+
+	t.Run("insufficient stock", func(t *testing.T) {
+		svc := NewService(500)
+		actor := Actor{GuestToken: "gst_test_stock"}
+
+		if _, err := svc.UpsertItem(actor, ProductSnapshot{
+			ID:                    "prd_stock",
+			VendorID:              "ven_stock",
+			Title:                 "Notebook",
+			Currency:              "USD",
+			UnitPriceInclTaxCents: 1000,
+			StockQty:              2,
+		}, 3); err != ErrInsufficientStock {
+			t.Fatalf("expected ErrInsufficientStock, got %v", err)
+		}
+	})
+
+	t.Run("missing actor", func(t *testing.T) {
+		svc := NewService(500)
+		if _, err := svc.PlaceOrder(Actor{}, "idem-missing-actor"); err != ErrInvalidActor {
+			t.Fatalf("expected ErrInvalidActor, got %v", err)
+		}
+	})
+}
+
+func TestPlaceOrderIdempotencyScopeAndReplaySafety(t *testing.T) {
+	svc := NewService(500)
+	const idemKey = "idem-shared-key"
+
+	actorA := Actor{GuestToken: "gst_scope_a"}
+	actorB := Actor{GuestToken: "gst_scope_b"}
+
+	if _, err := svc.UpsertItem(actorA, ProductSnapshot{
+		ID:                    "prd_scope_a",
+		VendorID:              "ven_scope",
+		Title:                 "Notebook",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1000,
+		StockQty:              5,
+	}, 1); err != nil {
+		t.Fatalf("actorA UpsertItem() error = %v", err)
+	}
+
+	firstA, err := svc.PlaceOrder(actorA, idemKey)
+	if err != nil {
+		t.Fatalf("actorA PlaceOrder() error = %v", err)
+	}
+
+	if _, err := svc.UpsertItem(actorB, ProductSnapshot{
+		ID:                    "prd_scope_b",
+		VendorID:              "ven_scope",
+		Title:                 "Poster",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 1500,
+		StockQty:              5,
+	}, 1); err != nil {
+		t.Fatalf("actorB UpsertItem() error = %v", err)
+	}
+
+	firstB, err := svc.PlaceOrder(actorB, idemKey)
+	if err != nil {
+		t.Fatalf("actorB PlaceOrder() error = %v", err)
+	}
+	if firstB.ID == firstA.ID {
+		t.Fatalf("expected same idempotency key to remain actor-scoped, got identical order id %s", firstA.ID)
+	}
+
+	if _, err := svc.UpsertItem(actorA, ProductSnapshot{
+		ID:                    "prd_scope_a_2",
+		VendorID:              "ven_scope",
+		Title:                 "Pen",
+		Currency:              "USD",
+		UnitPriceInclTaxCents: 500,
+		StockQty:              5,
+	}, 1); err != nil {
+		t.Fatalf("actorA second UpsertItem() error = %v", err)
+	}
+
+	replayA, err := svc.PlaceOrder(actorA, idemKey)
+	if err != nil {
+		t.Fatalf("actorA replay PlaceOrder() error = %v", err)
+	}
+	if replayA.ID != firstA.ID {
+		t.Fatalf("expected replay order id %s, got %s", firstA.ID, replayA.ID)
+	}
+
+	cartA, err := svc.GetCart(actorA)
+	if err != nil {
+		t.Fatalf("actorA GetCart() error = %v", err)
+	}
+	if cartA.ItemCount != 1 {
+		t.Fatalf("expected replay to preserve new cart intent (item_count=1), got %d", cartA.ItemCount)
+	}
+}
+
 func TestUpdateAndRemoveCartItem(t *testing.T) {
 	svc := NewService(500)
 	actor := Actor{GuestToken: "gst_test_cart"}

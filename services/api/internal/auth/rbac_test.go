@@ -38,3 +38,59 @@ func TestMustBeAllowed(t *testing.T) {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 }
+
+func TestPermissionMatrixCoverage(t *testing.T) {
+	expected := map[Role]map[Permission]bool{
+		RoleBuyer: {
+			PermissionViewCatalog: true,
+		},
+		RoleVendorOwner: {
+			PermissionViewCatalog:           true,
+			PermissionManageVendorProducts:  true,
+			PermissionManageVendorCoupons:   true,
+			PermissionManageShipmentOrders:  true,
+			PermissionManageRefundDecisions: true,
+			PermissionViewVendorAnalytics:   true,
+		},
+		RoleSupport: {
+			PermissionViewCatalog:              true,
+			PermissionManageOrdersOperations:   true,
+			PermissionManageVendorVerification: true,
+			PermissionViewAuditLogs:            true,
+		},
+		RoleFinance: {
+			PermissionViewCatalog:           true,
+			PermissionManagePromotions:      true,
+			PermissionManageCommission:      true,
+			PermissionManagePaymentSettings: true,
+			PermissionManageTaxSettings:     true,
+			PermissionViewAdminAnalytics:    true,
+			PermissionViewAuditLogs:         true,
+		},
+		RoleCatalogModerator: {
+			PermissionViewCatalog:      true,
+			PermissionModerateProducts: true,
+			PermissionViewAuditLogs:    true,
+		},
+		RoleSuperAdmin: {},
+	}
+
+	for _, role := range Roles() {
+		role := role
+		t.Run(role.String(), func(t *testing.T) {
+			for _, permission := range Permissions() {
+				_, explicitlyAllowed := expected[role][permission]
+				wantAllowed := explicitlyAllowed || role == RoleSuperAdmin
+				if got := IsAllowed(role, permission); got != wantAllowed {
+					t.Fatalf(
+						"unexpected permission mapping role=%s permission=%s got=%v want=%v",
+						role,
+						permission,
+						got,
+						wantAllowed,
+					)
+				}
+			}
+		})
+	}
+}
