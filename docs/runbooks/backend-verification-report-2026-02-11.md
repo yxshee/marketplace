@@ -82,6 +82,8 @@
   - [ca524ae](https://github.com/yxshee/marketplace-gumroad-inspired/commit/ca524ae)
 - Shared/web contract and request-shape validation:
   - [f6a0dde](https://github.com/yxshee/marketplace-gumroad-inspired/commit/f6a0dde)
+- Baseline and verification runbook artifacts:
+  - [c72b59a](https://github.com/yxshee/marketplace-gumroad-inspired/commit/c72b59a)
 
 ## Known gaps and next steps
 - Presigned S3-compatible upload endpoints are not yet present in API/OpenAPI, so presign auth/key/size/TTL verification could not be completed.
