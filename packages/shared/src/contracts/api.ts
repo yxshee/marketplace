@@ -10,10 +10,7 @@ export const roleList = [
 export type PrincipalRole = (typeof roleList)[number];
 
 export interface ApiErrorResponse {
-  error: {
-    code: string;
-    message: string;
-  };
+  error: string;
 }
 
 export interface AuthResponse {
